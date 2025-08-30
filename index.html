@@ -1,176 +1,104 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>TBM Live — Bordeaux</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/react-leaflet@4.2.1/dist/react-leaflet.min.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.2/dist/tailwind.min.css" rel="stylesheet">
-  <style>
-    #root { height: 100vh; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TBM Bus Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Roboto', sans-serif; margin:0; background: linear-gradient(to right, #4facfe, #00f2fe); color:white; min-height:100vh; }
+  h1 { text-align:center; margin:20px 0; font-size:2rem; }
+  .container { padding:10px; }
+  .card { background: rgba(255,255,255,0.1); padding:15px; border-radius:12px; margin-bottom:10px; cursor:pointer; transition: transform 0.3s, background 0.3s; }
+  .card:hover { transform: scale(1.05); background: rgba(255,255,255,0.2); }
+  .back-btn { margin-bottom:15px; display:inline-block; cursor:pointer; text-decoration: underline; }
+  .hidden { display:none; }
+  .arrival-time { background: rgba(0,0,0,0.2); padding:10px; border-radius:10px; margin-top:5px; }
+</style>
 </head>
-<body class="bg-black text-white">
-  <div id="root"></div>
+<body>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-    const { MapContainer, TileLayer, Marker, Popup } = ReactLeaflet;
+<h1>TBM Bus Tracker</h1>
+<div class="container" id="app"></div>
 
-    const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
-    const BASE_SIRI = `https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux`;
-    const BASE_GTFS_VEH = `https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=${ACCOUNT_KEY}`;
+<script>
+const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
+const BASE_SIRI = `https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux`;
+const BASE_GTFS_VEH = `https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=${ACCOUNT_KEY}`;
 
-    // Fix icons
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+const app = document.getElementById('app');
+
+// Affiche tous les bus en temps réel
+async function showBuses() {
+  app.innerHTML = '';
+  try {
+    const data = await fetch(BASE_GTFS_VEH).then(r => r.json());
+    const vehicles = data.vehicles || [];
+    vehicles.forEach(bus => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.textContent = `Bus ${bus.lineCode} - Direction ${bus.direction} - Position: ${bus.lat.toFixed(5)}, ${bus.lon.toFixed(5)}`;
+      div.onclick = () => showBusStops(bus.lineCode);
+      app.appendChild(div);
     });
+  } catch (err) {
+    app.innerHTML = `<p>Erreur lors du chargement des bus : ${err}</p>`;
+  }
+}
 
-    function App() {
-      const [vehicles, setVehicles] = useState([]);
-      const [lines, setLines] = useState([]);
-      const [stops, setStops] = useState([]);
-      const [selectedVehicle, setSelectedVehicle] = useState(null);
-      const [selectedLineStops, setSelectedLineStops] = useState([]);
-      const [selectedStopEstimate, setSelectedStopEstimate] = useState(null);
-      const [loading, setLoading] = useState({vehicles:false,lines:false,stops:false});
-      const [userPos, setUserPos] = useState(null);
-      const [nearbyStops, setNearbyStops] = useState([]);
-      const refreshRef = useRef(null);
+// Affiche les arrêts d’un bus (SIRI Lite)
+async function showBusStops(lineCode) {
+  app.innerHTML = `<div class="back-btn" onclick="showBuses()">← Retour</div>
+                   <h2>Arrêts de la ligne ${lineCode}</h2>`;
+  try {
+    const res = await fetch(`${BASE_SIRI}?LineRef=${lineCode}`);
+    const data = await res.json();
+    const stops = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit || [];
+    stops.forEach(stop => {
+      const stopId = stop.MonitoredVehicleJourney.MonitoredCall.StopPointRef;
+      const stopName = stop.MonitoredVehicleJourney.MonitoredCall.StopPointName;
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.textContent = stopName;
+      div.onclick = () => showStopDepartures(stopId, stopName);
+      app.appendChild(div);
+    });
+  } catch(err) {
+    app.innerHTML += `<p>Erreur lors du chargement des arrêts : ${err}</p>`;
+  }
+}
 
-      useEffect(()=>{
-        fetchLines();
-        fetchStops();
-        fetchVehicles();
-        refreshRef.current = setInterval(fetchVehicles,10000);
-        if(navigator.geolocation){
-          navigator.geolocation.getCurrentPosition(pos=>{
-            setUserPos({lat: pos.coords.latitude, lon: pos.coords.longitude});
-          }, err=>{ console.warn('GEO error', err); }, {enableHighAccuracy:true, timeout:10000});
-        }
-        return ()=> clearInterval(refreshRef.current);
-      },[]);
-
-      async function fetchVehicles(){
-        setLoading(l=>({...l,vehicles:true}));
-        try{
-          const res = await fetch(BASE_GTFS_VEH);
-          const data = await res.json();
-          const list = data.vehicles || data.vehiclePositions || [];
-          setVehicles(list);
-        }catch(e){ console.error('fetchVehicles',e); setVehicles([]); }
-        finally{ setLoading(l=>({...l,vehicles:false})); }
-      }
-
-      async function fetchLines(){
-        setLoading(l=>({...l,lines:true}));
-        try{
-          const res = await fetch(`${BASE_SIRI}/lines-discovery.json?AccountKey=${ACCOUNT_KEY}`,{headers:{Accept:'application/json'}});
-          const j = await res.json();
-          setLines(j.lines || j || []);
-        }catch(e){ console.error('fetchLines',e); setLines([]); }
-        finally{ setLoading(l=>({...l,lines:false})); }
-      }
-
-      async function fetchStops(){
-        setLoading(l=>({...l,stops:true}));
-        try{
-          const res = await fetch(`${BASE_SIRI}/stoppoints-discovery.json?AccountKey=${ACCOUNT_KEY}`,{headers:{Accept:'application/json'}});
-          const j = await res.json();
-          setStops(j.stoppoints || j || []);
-        }catch(e){ console.error('fetchStops',e); setStops([]); }
-        finally{ setLoading(l=>({...l,stops:false})); }
-      }
-
-      function distance(lat1, lon1, lat2, lon2){
-        const R = 6371e3;
-        const φ1 = lat1*Math.PI/180;
-        const φ2 = lat2*Math.PI/180;
-        const Δφ = (lat2-lat1)*Math.PI/180;
-        const Δλ = (lon2-lon1)*Math.PI/180;
-        const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-        const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R*c;
-      }
-
-      useEffect(()=>{
-        if(userPos && stops.length>0){
-          const stopsWithDist = stops.map(s=>{
-            const lat = s.lat || s.latitude || s.Location?.Latitude;
-            const lon = s.lon || s.longitude || s.Location?.Longitude;
-            if(!lat||!lon) return null;
-            const dist = distance(userPos.lat,userPos.lon,lat,lon);
-            return {...s, dist, _lat:lat, _lon:lon};
-          }).filter(Boolean);
-          const sorted = stopsWithDist.sort((a,b)=>a.dist-b.dist);
-          setNearbyStops(sorted.filter(s=>s.dist<1000).slice(0,3));
-        }
-      },[userPos,stops]);
-
-      function onClickVehicle(v){
-        setSelectedVehicle(v);
-        const route = lines.find(l=> l.id === v.routeId || l.lineId === v.routeId || l.shortName === v.routeId || l.id === v.tripId);
-        if(route){
-          const dir0 = route.longName || route.name || `${route.id||''}`;
-          setSelectedVehicle(prev=>({...prev, routeName: dir0}));
-        }
-      }
-
-      async function onClickLine(line){
-        const lineId = line.id || line.lineId || line.ShortName || line.shortName || line.LineRef;
-        try{
-          const res0 = await fetch(`${BASE_SIRI}/estimated-timetable.json?AccountKey=${ACCOUNT_KEY}&LineRef=${encodeURIComponent(lineId)}&DirectionRef=0`,{headers:{Accept:'application/json'}});
-          const j0 = await res0.json();
-          const stops0 = (j0.estimatedTimetable && j0.estimatedTimetable.estimatedTimetable) || j0.services || j0;
-          setSelectedLineStops(stops0 || []);
-        }catch(e){ console.error('onClickLine',e); setSelectedLineStops([]);}
-      }
-
-      async function onClickStop(stop){
-        const monitoringRef = stop.id || stop.stopId || stop.StopPointRef || stop.stopPointRef || stop.StopPointRefId || stop.StopPointRef || stop.StopPointRefId;
-        if(!monitoringRef) return;
-        try{
-          const res = await fetch(`${BASE_SIRI}/stop-monitoring.json?AccountKey=${ACCOUNT_KEY}&MonitoringRef=${encodeURIComponent(monitoringRef)}`,{headers:{Accept:'application/json'}});
-          const j = await res.json();
-          const depList = [];
-          if(j.StopMonitoringDelivery && j.StopMonitoringDelivery.length){
-            j.StopMonitoringDelivery.forEach(d=>{
-              if(d.MonitoredStopVisit)
-                d.MonitoredStopVisit.forEach(m=>{
-                  const vehicle = m.MonitoredVehicleJourney?.VehicleRef || m.MonitoredVehicleJourney?.vehicleRef;
-                  const aimed = m.MonitoredVehicleJourney?.OriginAimedDepartureTime || m.MonitoredVehicleJourney?.MonitoredCall?.ExpectedArrivalTime || m.MonitoredVehicleJourney?.MonitoredCall?.ArrivalTime;
-                  const eta = m.MonitoredVehicleJourney?.MonitoredCall?.ExpectedArrivalTime || m.MonitoredVehicleJourney?.MonitoredCall?.AimedArrivalTime || aimed;
-                  depList.push({vehicle, eta});
-                });
-            });
-          }
-          const now = Date.now();
-          const parsed = depList.map(d=>{
-            const t = d.eta ? Date.parse(d.eta) : null;
-            const mins = t ? Math.max(0, Math.round((t-now)/60000)) : null;
-            return {...d, minutes: mins};
-          });
-          setSelectedStopEstimate({stop, estimates: parsed});
-        }catch(e){ console.error('onClickStop',e); setSelectedStopEstimate({stop, estimates:[]});}
-      }
-
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-900 to-black text-white p-6">
-          {/* --- Place ici tout ton JSX original --- */}
-          {/* Pour la version complète, tu peux copier **tout ton return(...) original** ici */}
-          {/*** INSÉRER LE JSX ENTIER DE TON APP ORIGINAL ICI ***/}
-        </div>
-      );
+// Affiche les prochains départs pour un arrêt
+async function showStopDepartures(stopId, stopName) {
+  app.innerHTML = `<div class="back-btn" onclick="showBuses()">← Retour</div>
+                   <h2>Arrêt : ${stopName}</h2>`;
+  try {
+    const res = await fetch(`${BASE_SIRI}?stopPointRef=${stopId}`);
+    const data = await res.json();
+    const departures = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit || [];
+    if (departures.length === 0) {
+      app.innerHTML += `<p>Aucun départ prévu pour l'instant.</p>`;
+      return;
     }
+    departures.forEach(dep => {
+      const div = document.createElement('div');
+      div.className = 'card arrival-time';
+      const journey = dep.MonitoredVehicleJourney;
+      const dir = journey.DirectionName || "Direction inconnue";
+      const aimedTime = new Date(journey.MonitoredCall.AimedDepartureTime);
+      const now = new Date();
+      const minutesLeft = Math.max(Math.round((aimedTime - now)/60000), 0);
+      div.textContent = `${dir} → dans ${minutesLeft} min`;
+      app.appendChild(div);
+    });
+  } catch(err) {
+    app.innerHTML += `<p>Erreur lors du chargement des départs : ${err}</p>`;
+  }
+}
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+// Démarrage
+showBuses();
+</script>
+
 </body>
 </html>
