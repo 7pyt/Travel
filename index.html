@@ -4,102 +4,132 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TBM Bus Tracker</title>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<!-- Leaflet CSS pour la carte -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-  body { font-family: 'Roboto', sans-serif; margin:0; background: linear-gradient(to right, #4facfe, #00f2fe); color:white; min-height:100vh; }
-  h1 { text-align:center; margin:20px 0; font-size:2rem; }
-  .container { padding:10px; }
-  .card { background: rgba(255,255,255,0.1); padding:15px; border-radius:12px; margin-bottom:10px; cursor:pointer; transition: transform 0.3s, background 0.3s; }
-  .card:hover { transform: scale(1.05); background: rgba(255,255,255,0.2); }
-  .back-btn { margin-bottom:15px; display:inline-block; cursor:pointer; text-decoration: underline; }
-  .arrival-time { background: rgba(0,0,0,0.2); padding:10px; border-radius:10px; margin-top:5px; }
+body { margin:0; font-family:sans-serif; background: linear-gradient(to right,#4facfe,#00f2fe); color:white;}
+h1 { text-align:center; margin:15px; }
+.container { padding:10px; }
+.card { background: rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:8px; cursor:pointer; transition:0.2s; }
+.card:hover { transform: scale(1.03); background: rgba(255,255,255,0.2);}
+.back-btn { cursor:pointer; text-decoration:underline; display:inline-block; margin-bottom:8px;}
+.arrival-time { background: rgba(0,0,0,0.2); padding:10px; border-radius:8px; margin-top:5px; }
+#map { height: 300px; margin-top:10px; border-radius:10px; }
 </style>
 </head>
 <body>
-
 <h1>TBM Bus Tracker</h1>
 <div class="container" id="app"></div>
+<div id="map"></div>
 
+<!-- Leaflet JS pour la carte -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-const BASE_SIRI = `https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux`;
+const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
+const BASE_SIRI = "https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux";
+const BASE_VEHICLES = "https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey="+ACCOUNT_KEY;
 const app = document.getElementById('app');
 
-// Liste d’exemple des lignes TBM (tu peux compléter)
-const LINES = ["1","2","3","4","5","6","7","8","9","10"];
+// Initialisation de la carte
+const map = L.map('map').setView([44.8378, -0.5792], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+let vehicleMarkers = {};
 
-// Affiche les lignes
-function showLines() {
-  app.innerHTML = '';
-  LINES.forEach(line => {
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.textContent = `Ligne ${line}`;
-    div.onclick = () => showLineStops(line);
-    app.appendChild(div);
-  });
+// --- Fonctions principales ---
+
+// 1️⃣ Toutes les lignes
+async function getLines(){
+    const res = await fetch(`${BASE_SIRI}/lines-discovery.json?AccountKey=${ACCOUNT_KEY}`);
+    const data = await res.json();
+    return data.Lines;
 }
 
-// Affiche les arrêts d’une ligne
-async function showLineStops(lineCode) {
-  app.innerHTML = `<div class="back-btn" onclick="showLines()">← Retour</div>
-                   <h2>Arrêts de la ligne ${lineCode}</h2>`;
-  try {
-    const res = await fetch(`${BASE_SIRI}?LineRef=${lineCode}`);
-    const text = await res.text(); // récupérer XML
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text, "application/xml");
-    const visits = xml.getElementsByTagName("MonitoredStopVisit");
-    for(let i=0; i<visits.length; i++){
-      const stop = visits[i].getElementsByTagName("MonitoredCall")[0];
-      const stopId = stop.getElementsByTagName("StopPointRef")[0].textContent;
-      const stopName = stop.getElementsByTagName("StopPointName")[0].textContent;
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.textContent = stopName;
-      div.onclick = () => showStopDepartures(stopId, stopName);
-      app.appendChild(div);
-    }
-  } catch(err){
-    app.innerHTML += `<p>Erreur lors du chargement des arrêts : ${err}</p>`;
-  }
+// 2️⃣ Tous les arrêts
+async function getStops(){
+    const res = await fetch(`${BASE_SIRI}/stoppoints-discovery.json?AccountKey=${ACCOUNT_KEY}`);
+    const data = await res.json();
+    return data.StopPoints;
 }
 
-// Affiche les prochains départs pour un arrêt
-async function showStopDepartures(stopId, stopName){
-  app.innerHTML = `<div class="back-btn" onclick="showLines()">← Retour</div>
-                   <h2>Arrêt : ${stopName}</h2>`;
-  try {
-    const res = await fetch(`${BASE_SIRI}?stopPointRef=${stopId}`);
-    const text = await res.text();
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text,"application/xml");
-    const visits = xml.getElementsByTagName("MonitoredStopVisit");
-    if(visits.length === 0){
-      app.innerHTML += `<p>Aucun départ prévu pour l'instant.</p>`;
-      return;
-    }
-    for(let i=0;i<visits.length;i++){
-      const journey = visits[i].getElementsByTagName("MonitoredVehicleJourney")[0];
-      const call = journey.getElementsByTagName("MonitoredCall")[0];
-      const aimedTimeText = call.getElementsByTagName("AimedDepartureTime")[0].textContent;
-      const dirElem = journey.getElementsByTagName("DirectionName")[0];
-      const dir = dirElem ? dirElem.textContent : "Direction inconnue";
-      const aimedTime = new Date(aimedTimeText);
-      const now = new Date();
-      const minutesLeft = Math.max(Math.round((aimedTime - now)/60000),0);
-      const div = document.createElement('div');
-      div.className = 'card arrival-time';
-      div.textContent = `${dir} → dans ${minutesLeft} min`;
-      app.appendChild(div);
-    }
-  } catch(err){
-    app.innerHTML += `<p>Erreur lors du chargement des départs : ${err}</p>`;
-  }
+// 3️⃣ Affiche lignes
+async function showLines(){
+    app.innerHTML = '';
+    const lines = await getLines();
+    lines.forEach(line=>{
+        const div = document.createElement('div');
+        div.className='card';
+        div.textContent = `Ligne ${line.PublicCode} : ${line.Description}`;
+        div.onclick = ()=>showLineStops(line.LineRef);
+        app.appendChild(div);
+    });
 }
 
-// Démarrage
+// 4️⃣ Affiche arrêts d’une ligne
+async function showLineStops(lineRef){
+    app.innerHTML=`<div class="back-btn" onclick="showLines()">← Retour</div><h2>Arrêts de la ligne</h2>`;
+    const stops = await getStops();
+    stops.forEach(stop=>{
+        if(stop.Lines.includes(lineRef)){
+            const div=document.createElement('div');
+            div.className='card';
+            div.textContent=stop.Name;
+            div.onclick = ()=>showStopDepartures(stop.StopPointRef, stop.Name, stop.Latitude, stop.Longitude);
+            app.appendChild(div);
+        }
+    });
+}
+
+// 5️⃣ Prochains passages pour un arrêt + centrer carte
+async function showStopDepartures(stopId, stopName, lat, lon){
+    app.innerHTML=`<div class="back-btn" onclick="showLines()">← Retour</div><h2>Arrêt : ${stopName}</h2>`;
+    map.setView([lat, lon], 15);
+    L.marker([lat, lon]).addTo(map).bindPopup(stopName).openPopup();
+
+    const res = await fetch(`${BASE_SIRI}/stop-monitoring.json?AccountKey=${ACCOUNT_KEY}&MonitoringRef=${stopId}`);
+    const data = await res.json();
+    const visits = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit;
+    if(!visits || visits.length===0){
+        app.innerHTML+=`<p>Aucun départ prévu pour l'instant.</p>`;
+        return;
+    }
+    visits.forEach(v=>{
+        const journey = v.MonitoredVehicleJourney;
+        const dir = journey.DirectionName || "Direction inconnue";
+        const line = journey.LineRef || "";
+        const aimedTime = new Date(journey.MonitoredCall.AimedDepartureTime);
+        const now = new Date();
+        const minutesLeft = Math.max(Math.round((aimedTime-now)/60000),0);
+        const div=document.createElement('div');
+        div.className='card arrival-time';
+        div.textContent=`Ligne ${line} → ${dir} → dans ${minutesLeft} min`;
+        app.appendChild(div);
+    });
+}
+
+// 6️⃣ Mettre à jour positions véhicules
+async function updateVehicles(){
+    const res = await fetch(BASE_VEHICLES);
+    const data = await res.json();
+    const vehicles = data.Vehicles;
+    vehicles.forEach(v=>{
+        const id = v.VehicleRef;
+        const lat = parseFloat(v.Latitude);
+        const lon = parseFloat(v.Longitude);
+        const popup = `Ligne ${v.LineRef} → ${v.DestinationName}`;
+        if(vehicleMarkers[id]){
+            vehicleMarkers[id].setLatLng([lat, lon]);
+        } else {
+            vehicleMarkers[id] = L.marker([lat, lon], {icon:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/61/61231.png',iconSize:[30,30]})}).addTo(map).bindPopup(popup);
+        }
+    });
+}
+setInterval(updateVehicles, 10000); // mise à jour toutes les 10s
+
+// 🚀 Démarrage
 showLines();
+updateVehicles();
 </script>
-
 </body>
 </html>
