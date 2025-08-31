@@ -21,72 +21,78 @@
 <div class="container" id="app"></div>
 
 <script>
-const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
 const BASE_SIRI = `https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux`;
-
 const app = document.getElementById('app');
 
-// Liste de quelques lignes TBM pour exemple (SIRI Lite n'a pas un endpoint "all lines")
-const LINES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]; // tu peux compléter
+// Liste d’exemple des lignes TBM (tu peux compléter)
+const LINES = ["1","2","3","4","5","6","7","8","9","10"];
 
-// Affiche toutes les lignes TBM
+// Affiche les lignes
 function showLines() {
   app.innerHTML = '';
-  LINES.forEach(lineCode => {
+  LINES.forEach(line => {
     const div = document.createElement('div');
     div.className = 'card';
-    div.textContent = `Ligne ${lineCode}`;
-    div.onclick = () => showLineStops(lineCode);
+    div.textContent = `Ligne ${line}`;
+    div.onclick = () => showLineStops(line);
     app.appendChild(div);
   });
 }
 
-// Affiche les arrêts d'une ligne via SIRI Lite
+// Affiche les arrêts d’une ligne
 async function showLineStops(lineCode) {
   app.innerHTML = `<div class="back-btn" onclick="showLines()">← Retour</div>
                    <h2>Arrêts de la ligne ${lineCode}</h2>`;
   try {
     const res = await fetch(`${BASE_SIRI}?LineRef=${lineCode}`);
-    const data = await res.json();
-    const stops = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit || [];
-    stops.forEach(stop => {
-      const stopId = stop.MonitoredVehicleJourney.MonitoredCall.StopPointRef;
-      const stopName = stop.MonitoredVehicleJourney.MonitoredCall.StopPointName;
+    const text = await res.text(); // récupérer XML
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "application/xml");
+    const visits = xml.getElementsByTagName("MonitoredStopVisit");
+    for(let i=0; i<visits.length; i++){
+      const stop = visits[i].getElementsByTagName("MonitoredCall")[0];
+      const stopId = stop.getElementsByTagName("StopPointRef")[0].textContent;
+      const stopName = stop.getElementsByTagName("StopPointName")[0].textContent;
       const div = document.createElement('div');
       div.className = 'card';
       div.textContent = stopName;
       div.onclick = () => showStopDepartures(stopId, stopName);
       app.appendChild(div);
-    });
-  } catch(err) {
+    }
+  } catch(err){
     app.innerHTML += `<p>Erreur lors du chargement des arrêts : ${err}</p>`;
   }
 }
 
 // Affiche les prochains départs pour un arrêt
-async function showStopDepartures(stopId, stopName) {
+async function showStopDepartures(stopId, stopName){
   app.innerHTML = `<div class="back-btn" onclick="showLines()">← Retour</div>
                    <h2>Arrêt : ${stopName}</h2>`;
   try {
     const res = await fetch(`${BASE_SIRI}?stopPointRef=${stopId}`);
-    const data = await res.json();
-    const departures = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit || [];
-    if (departures.length === 0) {
+    const text = await res.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text,"application/xml");
+    const visits = xml.getElementsByTagName("MonitoredStopVisit");
+    if(visits.length === 0){
       app.innerHTML += `<p>Aucun départ prévu pour l'instant.</p>`;
       return;
     }
-    departures.forEach(dep => {
+    for(let i=0;i<visits.length;i++){
+      const journey = visits[i].getElementsByTagName("MonitoredVehicleJourney")[0];
+      const call = journey.getElementsByTagName("MonitoredCall")[0];
+      const aimedTimeText = call.getElementsByTagName("AimedDepartureTime")[0].textContent;
+      const dirElem = journey.getElementsByTagName("DirectionName")[0];
+      const dir = dirElem ? dirElem.textContent : "Direction inconnue";
+      const aimedTime = new Date(aimedTimeText);
+      const now = new Date();
+      const minutesLeft = Math.max(Math.round((aimedTime - now)/60000),0);
       const div = document.createElement('div');
       div.className = 'card arrival-time';
-      const journey = dep.MonitoredVehicleJourney;
-      const dir = journey.DirectionName || "Direction inconnue";
-      const aimedTime = new Date(journey.MonitoredCall.AimedDepartureTime);
-      const now = new Date();
-      const minutesLeft = Math.max(Math.round((aimedTime - now)/60000), 0);
       div.textContent = `${dir} → dans ${minutesLeft} min`;
       app.appendChild(div);
-    });
-  } catch(err) {
+    }
+  } catch(err){
     app.innerHTML += `<p>Erreur lors du chargement des départs : ${err}</p>`;
   }
 }
