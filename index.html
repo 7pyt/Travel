@@ -3,34 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TBM Bus Tracker</title>
-<!-- Leaflet CSS pour la carte -->
+<title>TBM Bus Tracker Corrected</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-body { margin:0; font-family:sans-serif; background: linear-gradient(to right,#4facfe,#00f2fe); color:white;}
-h1 { text-align:center; margin:15px; }
-.container { padding:10px; }
-.card { background: rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:8px; cursor:pointer; transition:0.2s; }
-.card:hover { transform: scale(1.03); background: rgba(255,255,255,0.2);}
-.back-btn { cursor:pointer; text-decoration:underline; display:inline-block; margin-bottom:8px;}
-.arrival-time { background: rgba(0,0,0,0.2); padding:10px; border-radius:8px; margin-top:5px; }
-#map { height: 300px; margin-top:10px; border-radius:10px; }
+body {
+    margin:0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg,#4facfe,#00f2fe);
+    color:white;
+}
+h1 { text-align:center; margin:15px; font-size:2rem;}
+.container { padding:10px; position:relative; z-index:10; }
+.card {
+    background: rgba(255,255,255,0.1);
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:10px;
+    cursor:pointer;
+    transform: translateY(20px);
+    opacity:0;
+    animation: slideFade 0.5s forwards;
+}
+@keyframes slideFade {
+    to { transform: translateY(0); opacity:1; }
+}
+.card:hover { transform: scale(1.05); background: rgba(255,255,255,0.25);}
+.back-btn {
+    cursor:pointer;
+    text-decoration: underline;
+    display:inline-block;
+    margin-bottom:10px;
+}
+.arrival-time {
+    padding:12px;
+    border-radius:10px;
+    margin-top:5px;
+    font-weight:bold;
+    transition: all 0.5s;
+}
+#map { height:350px; margin-top:10px; border-radius:10px; box-shadow: 0 0 20px rgba(0,0,0,0.5); position:relative; z-index:0;}
 </style>
 </head>
 <body>
-<h1>TBM Bus Tracker</h1>
+<h1>TBM Bus Tracker Ultra</h1>
 <div class="container" id="app"></div>
 <div id="map"></div>
 
-<!-- Leaflet JS pour la carte -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
 const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
 const BASE_SIRI = "https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux";
-const BASE_VEHICLES = "https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey="+ACCOUNT_KEY;
+const BASE_VEHICLES = `https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=${ACCOUNT_KEY}`;
 const app = document.getElementById('app');
 
-// Initialisation de la carte
+// Carte Leaflet
 const map = L.map('map').setView([44.8378, -0.5792], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution: '&copy; OpenStreetMap contributors'
@@ -39,49 +65,53 @@ let vehicleMarkers = {};
 
 // --- Fonctions principales ---
 
-// 1️⃣ Toutes les lignes
-async function getLines(){
+// 1️⃣ Récupérer toutes les lignes
+async function getLines() {
     const res = await fetch(`${BASE_SIRI}/lines-discovery.json?AccountKey=${ACCOUNT_KEY}`);
     const data = await res.json();
-    return data.Lines;
+    return data.Siri.ServiceDelivery[0].LinesDelivery[0].Lines;
 }
 
-// 2️⃣ Tous les arrêts
-async function getStops(){
+// 2️⃣ Récupérer tous les arrêts
+async function getStops() {
     const res = await fetch(`${BASE_SIRI}/stoppoints-discovery.json?AccountKey=${ACCOUNT_KEY}`);
     const data = await res.json();
-    return data.StopPoints;
+    return data.Siri.ServiceDelivery[0].StopPoints;
 }
 
-// 3️⃣ Affiche lignes
+// 3️⃣ Afficher toutes les lignes
 async function showLines(){
-    app.innerHTML = '';
+    app.innerHTML='';
     const lines = await getLines();
-    lines.forEach(line=>{
+    lines.forEach((line,i)=>{
         const div = document.createElement('div');
         div.className='card';
+        div.style.animationDelay=`${i*0.05}s`;
         div.textContent = `Ligne ${line.PublicCode} : ${line.Description}`;
         div.onclick = ()=>showLineStops(line.LineRef);
         app.appendChild(div);
     });
 }
 
-// 4️⃣ Affiche arrêts d’une ligne
+// 4️⃣ Afficher tous les arrêts d’une ligne
 async function showLineStops(lineRef){
     app.innerHTML=`<div class="back-btn" onclick="showLines()">← Retour</div><h2>Arrêts de la ligne</h2>`;
     const stops = await getStops();
+    let i=0;
     stops.forEach(stop=>{
         if(stop.Lines.includes(lineRef)){
-            const div=document.createElement('div');
+            const div = document.createElement('div');
             div.className='card';
-            div.textContent=stop.Name;
+            div.style.animationDelay=`${i*0.05}s`;
+            div.textContent = stop.Name;
             div.onclick = ()=>showStopDepartures(stop.StopPointRef, stop.Name, stop.Latitude, stop.Longitude);
             app.appendChild(div);
+            i++;
         }
     });
 }
 
-// 5️⃣ Prochains passages pour un arrêt + centrer carte
+// 5️⃣ Afficher les prochains passages d’un arrêt + centrer sur la carte
 async function showStopDepartures(stopId, stopName, lat, lon){
     app.innerHTML=`<div class="back-btn" onclick="showLines()">← Retour</div><h2>Arrêt : ${stopName}</h2>`;
     map.setView([lat, lon], 15);
@@ -89,30 +119,30 @@ async function showStopDepartures(stopId, stopName, lat, lon){
 
     const res = await fetch(`${BASE_SIRI}/stop-monitoring.json?AccountKey=${ACCOUNT_KEY}&MonitoringRef=${stopId}`);
     const data = await res.json();
-    const visits = data.Siri.ServiceDelivery.StopMonitoringDelivery[0].MonitoredStopVisit;
-    if(!visits || visits.length===0){
-        app.innerHTML+=`<p>Aucun départ prévu pour l'instant.</p>`;
-        return;
-    }
-    visits.forEach(v=>{
-        const journey = v.MonitoredVehicleJourney;
+    const deliveries = data.Siri.ServiceDelivery[0].StopMonitoringDelivery[0].MonitoredStopVisit || [];
+    if(deliveries.length===0){ app.innerHTML+=`<p>Aucun départ prévu.</p>`; return; }
+
+    deliveries.forEach((v,i)=>{
+        const journey=v.MonitoredVehicleJourney;
         const dir = journey.DirectionName || "Direction inconnue";
         const line = journey.LineRef || "";
         const aimedTime = new Date(journey.MonitoredCall.AimedDepartureTime);
         const now = new Date();
         const minutesLeft = Math.max(Math.round((aimedTime-now)/60000),0);
-        const div=document.createElement('div');
+        const div = document.createElement('div');
         div.className='card arrival-time';
-        div.textContent=`Ligne ${line} → ${dir} → dans ${minutesLeft} min`;
+        div.style.animationDelay=`${i*0.05}s`;
+        div.style.background = minutesLeft<=2 ? 'red' : minutesLeft<=5 ? 'orange' : 'green';
+        div.textContent = `Ligne ${line} → ${dir} → dans ${minutesLeft} min`;
         app.appendChild(div);
     });
 }
 
-// 6️⃣ Mettre à jour positions véhicules
+// 6️⃣ Mettre à jour positions des bus en temps réel
 async function updateVehicles(){
     const res = await fetch(BASE_VEHICLES);
     const data = await res.json();
-    const vehicles = data.Vehicles;
+    const vehicles = data.Vehicles || [];
     vehicles.forEach(v=>{
         const id = v.VehicleRef;
         const lat = parseFloat(v.Latitude);
@@ -121,13 +151,15 @@ async function updateVehicles(){
         if(vehicleMarkers[id]){
             vehicleMarkers[id].setLatLng([lat, lon]);
         } else {
-            vehicleMarkers[id] = L.marker([lat, lon], {icon:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/61/61231.png',iconSize:[30,30]})}).addTo(map).bindPopup(popup);
+            vehicleMarkers[id]=L.marker([lat,lon],{
+                icon:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/512/61/61231.png',iconSize:[30,30]})
+            }).addTo(map).bindPopup(popup);
         }
     });
 }
-setInterval(updateVehicles, 10000); // mise à jour toutes les 10s
+setInterval(updateVehicles,10000);
 
-// 🚀 Démarrage
+// 🚀 Lancement
 showLines();
 updateVehicles();
 </script>
