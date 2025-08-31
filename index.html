@@ -1,161 +1,116 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TBM Bus Tracker</title>
-<style>
-body {
-    margin:0;
-    font-family: 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg,#4facfe,#00f2fe);
-    color:white;
-}
-h1 { text-align:center; margin:15px; font-size:2rem;}
-.container { padding:10px; }
-.card {
-    background: rgba(255,255,255,0.1);
-    padding:15px;
-    border-radius:12px;
-    margin-bottom:10px;
-    cursor:pointer;
-    transform: translateY(20px);
-    opacity:0;
-    animation: slideFade 0.5s forwards;
-}
-@keyframes slideFade {
-    to { transform: translateY(0); opacity:1; }
-}
-.card:hover { transform: scale(1.05); background: rgba(255,255,255,0.25);}
-.back-btn {
-    cursor:pointer;
-    text-decoration: underline;
-    display:inline-block;
-    margin-bottom:10px;
-}
-.arrival-time {
-    padding:12px;
-    border-radius:10px;
-    margin-top:5px;
-    font-weight:bold;
-    transition: all 0.5s;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TBM Bus Tracker Avancé</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        main {
+            padding: 20px;
+        }
+        .line, .stop, .bus {
+            margin-bottom: 10px;
+        }
+        .line {
+            font-weight: bold;
+        }
+        .bus {
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
-<h1>TBM Bus Tracker</h1>
-<div class="container" id="app"></div>
-
-<script>
-const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
-const BASE_SIRI = "https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux";
-const BASE_VEHICLES = `https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=${ACCOUNT_KEY}`;
-const app = document.getElementById('app');
-let vehicleData = [];
-
-// 1️⃣ Récupérer toutes les lignes
-async function getLines() {
-    const res = await fetch(`${BASE_SIRI}/lines-discovery.json?AccountKey=${ACCOUNT_KEY}`);
-    const data = await res.json();
-    return data.Siri.ServiceDelivery[0].LinesDelivery[0].Lines;
-}
-
-// 2️⃣ Récupérer tous les arrêts
-async function getStops() {
-    const res = await fetch(`${BASE_SIRI}/stoppoints-discovery.json?AccountKey=${ACCOUNT_KEY}`);
-    const data = await res.json();
-    return data.Siri.ServiceDelivery[0].StopPoints;
-}
-
-// 3️⃣ Récupérer tous les bus
-async function getVehicles() {
-    const res = await fetch(BASE_VEHICLES);
-    const data = await res.json();
-    vehicleData = data.Vehicles || [];
-}
-
-// 4️⃣ Afficher toutes les lignes
-async function showLines(){
-    app.innerHTML='';
-    const lines = await getLines();
-    lines.forEach((line,i)=>{
-        const div = document.createElement('div');
-        div.className='card';
-        div.style.animationDelay=`${i*0.05}s`;
-        div.textContent = `Ligne ${line.PublicCode} : ${line.Description}`;
-        div.onclick = ()=>showLineStops(line.LineRef, line.PublicCode);
-        app.appendChild(div);
-    });
-}
-
-// 5️⃣ Afficher tous les arrêts d’une ligne
-async function showLineStops(lineRef, lineCode){
-    app.innerHTML=`<div class="back-btn" onclick="showLines()">← Retour</div><h2>Arrêts de la ligne ${lineCode}</h2>`;
-    const stops = await getStops();
-    let i=0;
-    stops.forEach(stop=>{
-        if(stop.Lines.includes(lineRef)){
-            const div = document.createElement('div');
-            div.className='card';
-            div.style.animationDelay=`${i*0.05}s`;
-            div.textContent = stop.Name;
-            div.onclick = ()=>showStopDepartures(stop.StopPointRef, stop.Name, lineRef);
-            app.appendChild(div);
-            i++;
+    <header>
+        <h1>Suivi des Bus TBM</h1>
+    </header>
+    <main>
+        <div id="lines"></div>
+        <div id="stops"></div>
+        <div id="buses"></div>
+        <div id="alerts"></div>
+    </main>
+    <script>
+        // Fonction pour récupérer les données GTFS statiques
+        async function fetchGTFSData(url) {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data;
         }
-    });
-}
 
-// 6️⃣ Afficher prochains passages + tous les bus pour cet arrêt
-async function showStopDepartures(stopId, stopName, lineRef){
-    app.innerHTML=`<div class="back-btn" onclick="showLineStops('${lineRef}', '${lineRef}')">← Retour</div><h2>Arrêt : ${stopName}</h2>`;
-    
-    // 6a. Prochains passages
-    const res = await fetch(`${BASE_SIRI}/stop-monitoring.json?AccountKey=${ACCOUNT_KEY}&MonitoringRef=${stopId}`);
-    const data = await res.json();
-    const visits = data.Siri.ServiceDelivery[0].StopMonitoringDelivery[0].MonitoredStopVisit || [];
-    if(visits.length===0){
-        app.innerHTML+=`<p>Aucun départ prévu pour l'instant.</p>`;
-    }
-    visits.forEach((v,i)=>{
-        const journey = v.MonitoredVehicleJourney;
-        const dir = journey.DirectionName || "Direction inconnue";
-        const line = journey.LineRef || "";
-        const aimedTime = new Date(journey.MonitoredCall.AimedDepartureTime);
-        const now = new Date();
-        const minutesLeft = Math.max(Math.round((aimedTime-now)/60000),0);
-        const div = document.createElement('div');
-        div.className='card arrival-time';
-        div.style.animationDelay=`${i*0.05}s`;
-        div.style.background = minutesLeft<=2 ? 'red' : minutesLeft<=5 ? 'orange' : 'green';
-        div.textContent = `Ligne ${line} → ${dir} → dans ${minutesLeft} min`;
-        app.appendChild(div);
-    });
+        // Fonction pour récupérer les données GTFS-RT
+        async function fetchGTFSRTData(url) {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data;
+        }
 
-    // 6b. Tous les bus en temps réel
-    await getVehicles();
-    app.innerHTML+=`<h3 style="margin-top:20px;">Tous les bus en circulation :</h3>`;
-    vehicleData.forEach((v,i)=>{
-        const div = document.createElement('div');
-        div.className='card arrival-time';
-        div.style.animationDelay=`${i*0.02}s`;
-        div.style.background = '#00ffff';
-        div.textContent = `Bus ${v.VehicleRef} → Ligne ${v.LineRef} → ${v.DestinationName} → Lat:${v.Latitude} Lon:${v.Longitude}`;
-        app.appendChild(div);
-    });
-}
+        // Fonction pour afficher les lignes de bus
+        async function displayLines() {
+            const linesData = await fetchGTFSData('https://bdx.mecatran.com/utw/ws/gtfsfeed/static/bordeaux?apiKey=opendata-bordeaux-metropole-flux-gtfs-rt');
+            const linesContainer = document.getElementById('lines');
+            linesData.routes.forEach(line => {
+                const lineDiv = document.createElement('div');
+                lineDiv.classList.add('line');
+                lineDiv.textContent = `Ligne ${line.route_short_name}: ${line.route_long_name}`;
+                linesContainer.appendChild(lineDiv);
+            });
+        }
 
-// 🔄 Mise à jour auto des bus toutes les 15s
-setInterval(async ()=>{
-    const currentStop = document.querySelector('h2')?.textContent || '';
-    if(currentStop.startsWith('Arrêt')){
-        const lineRef = currentStop.split('→')[0]?.trim() || '';
-        showStopDepartures(vehicleData.StopPointRef, vehicleData.Name, lineRef);
-    }
-},15000);
+        // Fonction pour afficher les arrêts de bus
+        async function displayStops() {
+            const stopsData = await fetchGTFSData('https://bdx.mecatran.com/utw/ws/gtfsfeed/static/bordeaux?apiKey=opendata-bordeaux-metropole-flux-gtfs-rt');
+            const stopsContainer = document.getElementById('stops');
+            stopsData.stops.forEach(stop => {
+                const stopDiv = document.createElement('div');
+                stopDiv.classList.add('stop');
+                stopDiv.textContent = `Arrêt: ${stop.stop_name}`;
+                stopsContainer.appendChild(stopDiv);
+            });
+        }
 
-// 🚀 Démarrage
-showLines();
-</script>
+        // Fonction pour afficher les positions des bus
+        async function displayBuses() {
+            const busesData = await fetchGTFSRTData('https://transport.data.gouv.fr/resources/83026');
+            const busesContainer = document.getElementById('buses');
+            busesData.entity.forEach(entity => {
+                const bus = entity.vehicle;
+                const busDiv = document.createElement('div');
+                busDiv.classList.add('bus');
+                busDiv.textContent = `Bus ${bus.vehicle.id} - Position: (${bus.position.latitude}, ${bus.position.longitude})`;
+                busesContainer.appendChild(busDiv);
+            });
+        }
+
+        // Fonction pour afficher les alertes de service
+        async function displayAlerts() {
+            const alertsData = await fetchGTFSRTData('https://transport.data.gouv.fr/resources/83026');
+            const alertsContainer = document.getElementById('alerts');
+            alertsData.entity.forEach(entity => {
+                const alert = entity.alert;
+                const alertDiv = document.createElement('div');
+                alertDiv.classList.add('alert');
+                alertDiv.textContent = `Alerte: ${alert.header_text}`;
+                alertsContainer.appendChild(alertDiv);
+            });
+        }
+
+        // Appeler les fonctions pour afficher les données
+        displayLines();
+        displayStops();
+        displayBuses();
+        displayAlerts();
+    </script>
 </body>
 </html>
