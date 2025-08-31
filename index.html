@@ -12,7 +12,6 @@
   .card { background: rgba(255,255,255,0.1); padding:15px; border-radius:12px; margin-bottom:10px; cursor:pointer; transition: transform 0.3s, background 0.3s; }
   .card:hover { transform: scale(1.05); background: rgba(255,255,255,0.2); }
   .back-btn { margin-bottom:15px; display:inline-block; cursor:pointer; text-decoration: underline; }
-  .hidden { display:none; }
   .arrival-time { background: rgba(0,0,0,0.2); padding:10px; border-radius:10px; margin-top:5px; }
 </style>
 </head>
@@ -24,31 +23,27 @@
 <script>
 const ACCOUNT_KEY = "opendata-bordeaux-metropole-flux-gtfs-rt";
 const BASE_SIRI = `https://bdx.mecatran.com/utw/ws/siri/2.0/bordeaux`;
-const BASE_GTFS_VEH = `https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=${ACCOUNT_KEY}`;
 
 const app = document.getElementById('app');
 
-// Affiche tous les bus en temps réel
-async function showBuses() {
+// Liste de quelques lignes TBM pour exemple (SIRI Lite n'a pas un endpoint "all lines")
+const LINES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]; // tu peux compléter
+
+// Affiche toutes les lignes TBM
+function showLines() {
   app.innerHTML = '';
-  try {
-    const data = await fetch(BASE_GTFS_VEH).then(r => r.json());
-    const vehicles = data.vehicles || [];
-    vehicles.forEach(bus => {
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.textContent = `Bus ${bus.lineCode} - Direction ${bus.direction} - Position: ${bus.lat.toFixed(5)}, ${bus.lon.toFixed(5)}`;
-      div.onclick = () => showBusStops(bus.lineCode);
-      app.appendChild(div);
-    });
-  } catch (err) {
-    app.innerHTML = `<p>Erreur lors du chargement des bus : ${err}</p>`;
-  }
+  LINES.forEach(lineCode => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.textContent = `Ligne ${lineCode}`;
+    div.onclick = () => showLineStops(lineCode);
+    app.appendChild(div);
+  });
 }
 
-// Affiche les arrêts d’un bus (SIRI Lite)
-async function showBusStops(lineCode) {
-  app.innerHTML = `<div class="back-btn" onclick="showBuses()">← Retour</div>
+// Affiche les arrêts d'une ligne via SIRI Lite
+async function showLineStops(lineCode) {
+  app.innerHTML = `<div class="back-btn" onclick="showLines()">← Retour</div>
                    <h2>Arrêts de la ligne ${lineCode}</h2>`;
   try {
     const res = await fetch(`${BASE_SIRI}?LineRef=${lineCode}`);
@@ -70,7 +65,7 @@ async function showBusStops(lineCode) {
 
 // Affiche les prochains départs pour un arrêt
 async function showStopDepartures(stopId, stopName) {
-  app.innerHTML = `<div class="back-btn" onclick="showBuses()">← Retour</div>
+  app.innerHTML = `<div class="back-btn" onclick="showLines()">← Retour</div>
                    <h2>Arrêt : ${stopName}</h2>`;
   try {
     const res = await fetch(`${BASE_SIRI}?stopPointRef=${stopId}`);
@@ -97,7 +92,7 @@ async function showStopDepartures(stopId, stopName) {
 }
 
 // Démarrage
-showBuses();
+showLines();
 </script>
 
 </body>
