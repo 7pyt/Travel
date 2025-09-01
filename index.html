@@ -1,258 +1,407 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Radio Rap France — Écoute H24</title>
-  <style>
-    :root{--bg:#0f0f12;--card:#121217;--accent:#1db954;--muted:#9aa0a6;color-scheme:dark}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
-    body{background:linear-gradient(180deg,#07070a 0%, #0f0f12 100%);color:#eee;display:flex;align-items:center;justify-content:center}
-    .wrap{width:980px;max-width:96%;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
-    .now{display:flex;gap:20px}
-    .thumb{width:320px;height:320px;background:#222;border-radius:8px;flex:0 0 320px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-    .thumb img{width:100%;height:100%;object-fit:cover}
-    .meta{flex:1;display:flex;flex-direction:column;justify-content:space-between}
-    h1{margin:0 0 6px 0;font-size:24px}
-    .artist{color:var(--muted);margin-bottom:10px}
-    .progress{height:12px;background:#222;border-radius:999px;overflow:hidden;margin-top:6px}
-    .progress > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#7ef2b0)}
-    .controls{display:flex;gap:12px;align-items:center}
-    .vol{display:flex;gap:8px;align-items:center}
-    button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px 12px;border-radius:8px;cursor:pointer}
-    .overlay-disable{position:absolute;inset:0}
-    .suggestions{display:flex;gap:12px;margin-top:14px}
-    .suggest{background:#0b0b0d;padding:10px;border-radius:8px;flex:1;display:flex;gap:10px;align-items:center}
-    .suggest img{width:64px;height:64px;border-radius:6px;object-fit:cover}
-    .vote-btn{padding:6px 8px;border-radius:6px}
-    .hidden{display:none}
-    footer{margin-top:18px;color:var(--muted);font-size:13px}
-    .admin-hint{font-size:12px;color:var(--muted)}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <strong>Radio Rap France</strong>
-        <div style="font-size:13px;color:var(--muted)">Musique française — Rap — Playlist automatique</div>
-      </div>
-      <div style="font-size:13px;color:var(--muted)">Volume (local): <input id="userVolume" type="range" min="0" max="100" value="100" style="vertical-align:middle"></div>
-    </div>
+import React, { useEffect, useRef, useState } from "react";
 
-    <div class="now" style="position:relative;margin-top:16px">
-      <div class="thumb" id="thumb"><img src="" alt="cover"></div>
-      <div class="meta">
-        <div>
-          <h1 id="title">Chargement...</h1>
-          <div class="artist" id="artist">—</div>
-          <div class="progress" title="Progress"><i id="progressBar"></i></div>
-          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:6px"><span id="timeLeft">--:--</span><span id="duration">--:--</span></div>
+// StationRapFR - Single file React app
+// - Page publique: joue en continu une playlist (auto-play next) venant d'une API (configurable)
+// - N'affiche que des musiques rap françaises (filtrage côté client en exemple)
+// - L'utilisateur ne peut que baisser/monter le son (volume local), pas skip/pause
+// - Affiche titre, image, et barre de temps restant
+// - Page admin accessible via /admin.html (route client-side) : login par code admin simple
+// IMPORTANT : ceci est une implémentation front-end de démonstration. Pour une solution robuste
+// et conforme au droit d'auteur vous devez ajouter un backend (auth, streaming sécurisé, CORS, licence)
+
+// -----------------------------
+// CONFIGURATION
+// -----------------------------
+const CONFIG = {
+  // Endpoint d'exemple. Remplacez par votre vrai endpoint qui renvoie une liste d'objets piste:
+  // [{ id, title, artist, image, audioUrl, genre, country, trendingScore }]
+  MUSIC_API: "https://api.example.com/trending-music?limit=50",
+
+  // Code admin simple (pour demo). Remplacez et utilisez un backend pour une vraie authentification.
+  ADMIN_CODE: "MONSUPERSECRET",
+
+  // Si vous voulez forcer l'autoplay au chargement (attention aux politiques navigateur) :
+  START_AUTOPLAY: true,
+};
+
+// -----------------------------
+// Utilitaires
+// -----------------------------
+function formatTime(seconds) {
+  if (!isFinite(seconds)) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// -----------------------------
+// App
+// -----------------------------
+export default function StationRapFR() {
+  const [tracks, setTracks] = useState([]); // playlist
+  const [index, setIndex] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [route, setRoute] = useState(
+    window.location.pathname.endsWith("/admin.html") || window.location.pathname.endsWith("admin.html")
+      ? "/admin"
+      : "/"
+  );
+
+  useEffect(() => {
+    // simple routing - update when manually navigate
+    const onPop = () => {
+      setRoute(window.location.pathname === "/admin.html" || window.location.pathname === "/admin" ? "/admin" : "/");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    // if admin code was previously provided in sessionStorage
+    const ok = sessionStorage.getItem("station_admin_ok");
+    if (ok === "1") setIsAdmin(true);
+  }, []);
+
+  useEffect(() => {
+    // fetch tracks once
+    async function load() {
+      try {
+        const res = await fetch(CONFIG.MUSIC_API);
+        if (!res.ok) throw new Error("Erreur API");
+        const data = await res.json();
+        // filtrer: rap français et tendances (exemple côté client). Idéal : côté serveur.
+        const filtered = (data || [])
+          .filter((t) => {
+            const genre = (t.genre || "").toLowerCase();
+            const country = (t.country || "").toLowerCase();
+            const trending = t.trendingScore || 0;
+            return genre.includes("rap") && (country === "fr" || country === "france") && trending > 0;
+          })
+          .sort((a, b) => (b.trendingScore || 0) - (a.trendingScore || 0));
+
+        setTracks(filtered);
+      } catch (e) {
+        console.error("Impossible de charger les musiques:", e);
+      }
+    }
+    load();
+  }, []);
+
+  // small helper to navigate
+  function gotoAdmin() {
+    window.history.pushState({}, "admin", "/admin.html");
+    setRoute("/admin");
+  }
+  function gotoHome() {
+    window.history.pushState({}, "home", "/");
+    setRoute("/");
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4 font-sans">
+      <header className="max-w-4xl mx-auto flex items-center justify-between py-4">
+        <h1 className="text-2xl font-bold">Station Rap FR — Tendances 24/7</h1>
+        <div className="space-x-2">
+          <button
+            onClick={gotoHome}
+            className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700"
+          >
+            Écouter
+          </button>
+          <button
+            onClick={gotoAdmin}
+            className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500"
+          >
+            Admin
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto mt-6">
+        {route === "/" && (
+          <Player
+            tracks={tracks}
+            index={index}
+            setIndex={setIndex}
+            startAutoplay={CONFIG.START_AUTOPLAY}
+          />
+        )}
+
+        {route === "/admin" && (
+          <Admin
+            isAdmin={isAdmin}
+            setIsAdmin={setIsAdmin}
+            onBack={gotoHome}
+            tracks={tracks}
+            refreshTracks={() => window.location.reload()}
+          />
+        )}
+
+        <footer className="mt-8 text-sm text-gray-400">
+          <p>
+            Démo — Remplacez <code>CONFIG.MUSIC_API</code> par votre API, et ajoutez un backend pour
+            l'authentification et la gestion des streams (obligatoire pour la production et la
+            conformité aux licences).
+          </p>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+// -----------------------------
+// Player component
+// -----------------------------
+function Player({ tracks, index, setIndex, startAutoplay }) {
+  const audioRef = useRef(null);
+  const [volume, setVolume] = useState(1);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    const a = audioRef.current;
+
+    function onTime() {
+      setDuration(a.duration || 0);
+      setTimeLeft(Math.max(0, (a.duration || 0) - a.currentTime));
+    }
+    function onEnded() {
+      // auto-advance to next track
+      setPlaying(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % Math.max(1, tracks.length));
+      }, 300);
+    }
+    function onPlay() {
+      setPlaying(true);
+    }
+    function onPause() {
+      setPlaying(false);
+    }
+
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("ended", onEnded);
+    a.addEventListener("play", onPlay);
+    a.addEventListener("pause", onPause);
+
+    return () => {
+      a.removeEventListener("timeupdate", onTime);
+      a.removeEventListener("ended", onEnded);
+      a.removeEventListener("play", onPlay);
+      a.removeEventListener("pause", onPause);
+    };
+  }, [tracks, setIndex]);
+
+  // When track index changes, load and optionally autoplay
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (!tracks || tracks.length === 0) return;
+    const t = tracks[index % tracks.length];
+    if (!t) return;
+    a.src = t.audioUrl;
+    a.load();
+    // essayer de démarrer (les navigateurs peuvent bloquer autoplay sans interaction)
+    if (startAutoplay) {
+      a.play().catch(() => {
+        // autoplay bloqué -> on attend que l'utilisateur interagisse (ici: on ne propose aucun control autre que volume)
+      });
+    }
+  }, [index, tracks, startAutoplay]);
+
+  const current = tracks && tracks.length > 0 ? tracks[index % tracks.length] : null;
+
+  return (
+    <div className="bg-gray-800 rounded p-6 flex gap-6 items-center">
+      <div className="w-40 h-40 flex-shrink-0 rounded overflow-hidden bg-black">
+        {current ? (
+          <img src={current.image} alt={current.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-500">No cover</div>
+        )}
+      </div>
+
+      <div className="flex-1">
+        <h2 className="text-xl font-semibold">{current ? current.title : "En attente..."}</h2>
+        <p className="text-gray-300">{current ? (current.artist || "Artiste inconnu") : ""}</p>
+
+        <div className="mt-4">
+          <ProgressBar duration={duration} timeLeft={timeLeft} />
         </div>
 
-        <div>
-          <div class="suggestions hidden" id="suggestions">
-            <!-- suggestions injected here when 20s left -->
+        <div className="mt-4 flex items-center gap-4">
+          <div>
+            <label className="block text-sm text-gray-400">Volume (local)</label>
+            <input
+              aria-label="volume"
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+            />
+          </div>
+
+          <div className="ml-auto text-right text-sm text-gray-300">
+            <div>Temps restant</div>
+            <div className="font-mono">{formatTime(Math.round(timeLeft || 0))}</div>
           </div>
         </div>
       </div>
+
+      <audio ref={audioRef} />
     </div>
+  );
+}
 
-    <footer>Vous ne pouvez pas changer la musique (sauf admin local). Vous pouvez seulement ajuster le volume local (pour vous). Admin: <code>/admin.html</code></footer>
-  </div>
+function ProgressBar({ duration, timeLeft }) {
+  const played = duration ? Math.max(0, Math.min(1, (duration - timeLeft) / duration)) : 0;
+  const remaining = Math.ceil(timeLeft || 0);
+  return (
+    <div>
+      <div className="w-full bg-gray-700 h-3 rounded overflow-hidden">
+        <div className="h-full rounded" style={{ width: `${played * 100}%`, background: "linear-gradient(90deg, rgba(99,102,241,1), rgba(59,130,246,1))" }} />
+      </div>
+      <div className="flex justify-between text-xs text-gray-400 mt-1">
+        <span>{formatTime(Math.round(duration - (duration * played) || 0))}</span>
+        <span>-{formatTime(remaining)}</span>
+      </div>
+    </div>
+  );
+}
 
-  <!-- YouTube iframe API -->
-  <script src="https://www.youtube.com/iframe_api"></script>
+// -----------------------------
+// Admin component
+// -----------------------------
+function Admin({ isAdmin, setIsAdmin, onBack, tracks, refreshTracks }) {
+  const [code, setCode] = useState("");
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState([]);
+  const [status, setStatus] = useState("");
 
-  <script>
-  // =====================================================================
-  // CONFIG — no need to change anything. Drop on GitHub and it marche.
-  const ADMIN_CODE = 'RADIOADMIN2025'; // code for admin.html (change there if desired)
-  // A default curated playlist of French rap YouTube video IDs (replaceable by admin locally)
-  const PLAYLIST = [
-    // (These are example IDs — you can replace them in admin.html locally.)
-    'dQw4w9WgXcQ',
-    'kXYiU_JCYtU',
-    '3tmd-ClpJxA',
-    'e-ORhEE9VVg',
-  ];
-  // =====================================================================
-
-  // INTERNAL curated list (more reliable) — keep many IDs so the station runs 24/7
-  const CURATED = [
-    'AqWj8h8c9Ew',
-    '2Vv-BfVoq4g',
-    'RgKAFK5djSk',
-    '60ItHLz5WEA',
-    'YQHsXMglC9A',
-    'fLexgOxsZu0'
-  ];
-
-  // We'll combine and sanitize to build runtime playlist
-  let runtimePlaylist = [...PLAYLIST.filter(Boolean), ...CURATED];
-
-  // State
-  let player;
-  let currentIndex = 0;
-  let progressTimer;
-  let durationSeconds = 0;
-  let suggestionsShown = false;
-  let votes = {}; // {videoId: count} local only
-
-  // DOM
-  const titleEl = document.getElementById('title');
-  const artistEl = document.getElementById('artist');
-  const thumbImg = document.querySelector('#thumb img');
-  const progressBar = document.getElementById('progressBar');
-  const timeLeftEl = document.getElementById('timeLeft');
-  const durationEl = document.getElementById('duration');
-  const suggestionsEl = document.getElementById('suggestions');
-  const userVolume = document.getElementById('userVolume');
-
-  // Volume local only
-  let localVolume = 100;
-  userVolume.addEventListener('input', ()=>{ localVolume = parseInt(userVolume.value,10); if(player && player.setVolume) try{player.setVolume(localVolume)}catch(e){} });
-
-  // Create invisible player container
-  const playerDiv = document.createElement('div');
-  playerDiv.id = 'ytplayer';
-  playerDiv.style.display = 'none';
-  document.body.appendChild(playerDiv);
-
-  function safePickNextIndex(excludeIndex){
-    if(runtimePlaylist.length===0) return -1;
-    let idx = Math.floor(Math.random()*runtimePlaylist.length);
-    if(idx===excludeIndex && runtimePlaylist.length>1) idx = (idx+1)%runtimePlaylist.length;
-    return idx;
-  }
-
-  function onYouTubeIframeAPIReady(){
-    player = new YT.Player('ytplayer', {
-      height: '0', width: '0',
-      playerVars: { autoplay: 1, controls: 0, disablekb:1, modestbranding:1, rel:0 },
-      events: {
-        'onReady': ()=>{ loadAndPlay(currentIndex); },
-        'onStateChange': onPlayerStateChange
-      }
-    });
-  }
-  window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
-
-  function loadAndPlay(index){
-    if(runtimePlaylist.length===0) return;
-    currentIndex = ((index%runtimePlaylist.length)+runtimePlaylist.length)%runtimePlaylist.length;
-    const vid = runtimePlaylist[currentIndex];
-    // Reset UI
-    suggestionsShown = false; suggestionsEl.classList.add('hidden'); suggestionsEl.innerHTML=''; votes = {}; progressBar.style.width='0%';
-
-    // load video
-    try{ player.loadVideoById({videoId: vid, startSeconds:0}); player.setVolume(localVolume);}catch(e){ console.error(e); }
-    // Attempt to fetch simple metadata from oEmbed (no key)
-    fetch('https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v='+vid+'&format=json')
-      .then(r=>r.json()).then(data=>{
-        titleEl.textContent = data.title || 'Titre inconnu';
-        artistEl.textContent = (data.author_name ? data.author_name : 'Artiste');
-        thumbImg.src = data.thumbnail_url || '';
-      }).catch(()=>{
-        titleEl.textContent = 'Titre inconnu'; artistEl.textContent='Artiste'; thumbImg.src='';
-      });
-  }
-
-  function onPlayerStateChange(e){
-    if(e.data===YT.PlayerState.PLAYING){
-      durationSeconds = Math.floor(player.getDuration()||0);
-      durationEl.textContent = formatTime(durationSeconds);
-      // start progress timer
-      clearInterval(progressTimer);
-      progressTimer = setInterval(()=>{
-        const pos = Math.floor(player.getCurrentTime()||0);
-        const left = Math.max(0, durationSeconds - pos);
-        timeLeftEl.textContent = '-'+formatTime(left);
-        const pct = durationSeconds>0 ? (pos/durationSeconds*100) : 0;
-        progressBar.style.width = pct+'%';
-        // when 20s left -> show suggestions
-        if(!suggestionsShown && left<=20){ showSuggestions(); suggestionsShown=true; }
-      }, 500);
-    }
-    if(e.data===YT.PlayerState.ENDED){
-      clearInterval(progressTimer);
-      chooseNextAfterVote();
-    }
-  }
-
-  function showSuggestions(){
-    // pick 3 different candidates
-    const choices = [];
-    const idxs = new Set();
-    while(choices.length<3 && idxs.size<runtimePlaylist.length){
-      const i = safePickNextIndex(currentIndex);
-      idxs.add(i);
-      if(i!==currentIndex) choices.push(runtimePlaylist[i]);
-    }
-    suggestionsEl.innerHTML='';
-    choices.forEach(vid=>{
-      const container = document.createElement('div'); container.className='suggest';
-      const img = document.createElement('img'); img.src = 'https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg';
-      const info = document.createElement('div');
-      info.style.flex='1';
-      const t = document.createElement('div'); t.textContent='Chargement...';
-      const a = document.createElement('div'); a.style.color='var(--muted)'; a.style.fontSize='13px'; a.textContent='—';
-      // fetch oembed for title
-      fetch('https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v='+vid+'&format=json').then(r=>r.json()).then(d=>{ t.textContent=d.title; a.textContent=d.author_name; }).catch(()=>{});
-      info.appendChild(t); info.appendChild(a);
-      const voteBtn = document.createElement('button'); voteBtn.className='vote-btn'; voteBtn.textContent='Voter';
-      voteBtn.addEventListener('click', ()=>{ votes[vid] = (votes[vid]||0)+1; voteBtn.textContent = 'Voté ('+votes[vid]+')'; });
-      container.appendChild(img); container.appendChild(info); container.appendChild(voteBtn);
-      suggestionsEl.appendChild(container);
-    });
-    suggestionsEl.classList.remove('hidden');
-    // auto-select after 15 seconds or when video ends (we also check on ended)
-    setTimeout(()=>{ if(player && player.getPlayerState()===YT.PlayerState.PLAYING) chooseNextAfterVote(); }, 15000);
-  }
-
-  function chooseNextAfterVote(){
-    // pick highest voted; if all zero -> random
-    let winner = null; let best = -1; let totalVotes = 0;
-    Object.keys(votes).forEach(k=>{ totalVotes += votes[k]; if(votes[k]>best){ best=votes[k]; winner=k; }});
-    if(totalVotes===0){ // pick random among playlist except current
-      const idx = safePickNextIndex(currentIndex);
-      loadAndPlay(idx);
+  async function checkCode(e) {
+    e.preventDefault();
+    // Demo check côté client. Pour vrai usage, vérifier côté serveur.
+    if (code === CONFIG.ADMIN_CODE) {
+      sessionStorage.setItem("station_admin_ok", "1");
+      setIsAdmin(true);
+      setStatus("Authentification réussie");
     } else {
-      // if winner present find index
-      const idx = runtimePlaylist.indexOf(winner);
-      if(idx===-1){ loadAndPlay(safePickNextIndex(currentIndex)); } else { loadAndPlay(idx); }
+      setStatus("Code incorrect");
     }
   }
 
-  function formatTime(s){
-    if(!isFinite(s) || s<0) return '--:--';
-    const mm = Math.floor(s/60); const ss = Math.floor(s%60); return mm+':'+(ss<10?('0'+ss):ss);
+  async function searchAPI(q) {
+    if (!q) return setResults([]);
+    try {
+      // Exemple: endpoint de recherche. Remplacez par votre API.
+      const res = await fetch(CONFIG.MUSIC_API + "&q=" + encodeURIComponent(q));
+      const data = await res.json();
+      setResults((data || []).slice(0, 30));
+    } catch (e) {
+      console.error(e);
+      setResults([]);
+    }
   }
 
-  // Initial behavior: try to start with the first usable ID, else random
-  (function initPlaylist(){
-    // remove placeholder-ish short wrong ids
-    runtimePlaylist = runtimePlaylist.filter(id=>id && id.length>2);
-    if(runtimePlaylist.length===0) runtimePlaylist = [...CURATED];
-    currentIndex = 0;
-    // autoplay will start when YT API ready
-  })();
+  async function pickTrack(track) {
+    // Dans une vraie app, vous enverriez une requête au backend pour forcer la lecture sur la station.
+    // Ici on va stocker dans localStorage pour démonstration (le lecteur peut alors lire ce choix si il poll)
+    localStorage.setItem("station_force_play", JSON.stringify(track));
+    setStatus(`Piste "${track.title}" choisie. Recharger la page publique pour appliquer.`);
+  }
 
-  // Prevent user interactions that change music (remove contextmenu / keyboard)
-  document.addEventListener('keydown', e=>{ if(['Space','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault(); });
-  document.addEventListener('contextmenu', e=>e.preventDefault());
+  return (
+    <div className="bg-gray-800 rounded p-6">
+      <button onClick={onBack} className="mb-4 px-3 py-1 rounded bg-gray-700">Retour</button>
 
-  // Expose a little API for admin.html when opened on same origin (local only):
-  window.__radio_admin = {
-    playNow: function(videoId){
-      // if videoId in playlist use it otherwise push at next slot then play
-      let idx = runtimePlaylist.indexOf(videoId);
-      if(idx===-1){ runtimePlaylist.splice(currentIndex+1,0,videoId); idx = currentIndex+1; }
-      loadAndPlay(idx);
-    },
-    addToPlaylist: function(videoId){ runtimePlaylist.push(videoId); }
-  };
+      {!isAdmin && (
+        <form onSubmit={checkCode} className="max-w-md">
+          <h3 className="text-lg font-semibold mb-2">Connexion Admin</h3>
+          <input
+            type="password"
+            placeholder="Entrez le code admin"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="w-full p-2 rounded bg-gray-900 border border-gray-700 mb-2"
+          />
+          <button className="px-4 py-2 rounded bg-indigo-600">Se connecter</button>
+          <div className="mt-2 text-sm text-yellow-300">{status}</div>
+        </form>
+      )}
 
-  </script>
-</body>
-</html>
+      {isAdmin && (
+        <div>
+          <h3 className="text-lg font-semibold mb-3">Panneau Admin</h3>
+
+          <div className="mb-4">
+            <label className="block text-sm text-gray-400">Rechercher une piste</label>
+            <div className="flex gap-2 mt-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Titre, artiste..."
+                className="flex-1 p-2 rounded bg-gray-900 border border-gray-700"
+              />
+              <button
+                onClick={() => searchAPI(search)}
+                className="px-3 py-2 rounded bg-indigo-600"
+              >
+                Rechercher
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-96 overflow-auto">
+            {results.length === 0 && <div className="text-gray-400">Aucun résultat</div>}
+            {results.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 p-2 border-b border-gray-700">
+                <img src={r.image} alt="cover" className="w-12 h-12 object-cover rounded" />
+                <div className="flex-1">
+                  <div className="font-semibold">{r.title}</div>
+                  <div className="text-sm text-gray-400">{r.artist}</div>
+                </div>
+                <button onClick={() => pickTrack(r)} className="px-3 py-1 rounded bg-green-600">Choisir</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 text-sm text-gray-300">Status: {status}</div>
+
+          <div className="mt-6">
+            <h4 className="font-semibold">Playlist actuelle (preview)</h4>
+            <div className="mt-2">
+              {tracks.length === 0 && <div className="text-gray-400">Aucune piste chargée</div>}
+              {tracks.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 p-2 border-b border-gray-700">
+                  <img src={t.image} alt="cover" className="w-10 h-10 object-cover rounded" />
+                  <div className="flex-1">
+                    <div className="font-semibold">{t.title}</div>
+                    <div className="text-sm text-gray-400">{t.artist}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 text-xs text-gray-500">
+            <strong>Remarques :</strong>
+            <ul className="list-disc ml-5">
+              <li>Le code admin est vérifié côté client — NON SÉCURISÉ. Utiliser un backend pour une vraie app.</li>
+              <li>Pour forcer la lecture immédiatement sur la station, faites une API serveur qui notifie le player.</li>
+              <li>Respecter les droits d'auteur : fournissez des flux disposant des licences nécessaires.</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
