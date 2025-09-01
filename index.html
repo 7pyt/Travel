@@ -1,108 +1,258 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TBM — Toutes les lignes bus & tram (aller/retour + arrêts + temps réel)</title>
-<style>
-  :root{--bg:#0b1020;--fg:#f7f8fc;--muted:#b8c2d9;--card:#121933;--accent:#4cc9f0}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif}
-  .app{display:grid;grid-template-columns:320px 1fr;gap:12px;height:100%;padding:12px;box-sizing:border-box}
-  .panel{background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;min-height:0}
-  .panel h2{margin:0;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);font-size:18px}
-  .panel .body{padding:10px 12px;overflow:auto}
-  .search{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
-  .search input{flex:1;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0e1530;color:var(--fg);outline:none}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;margin:6px;border-radius:14px;cursor:pointer;
-        background:#0f1836;border:1px solid rgba(255,255,255,.07);transition:.15s;user-select:none}
-  .pill:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(0,0,0,.25)}
-  .pill .dot{width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 2px rgba(0,0,0,.25) inset}
-  .pill .tag{font-size:12px;color:var(--muted);padding:2px 8px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
-  .subtle{color:var(--muted);font-size:12px}
-  .hr{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);margin:10px 0}
-  .list{display:flex;flex-wrap:wrap}
-  .empty{opacity:.7;padding:12px}
-  .loading{padding:18px;display:flex;align-items:center;gap:10px}
-  .spinner{width:18px;height:18px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:var(--accent);animation:spin 1s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .dir{display:flex;flex-direction:column;gap:8px}
-  .dir button{all:unset;cursor:pointer;padding:12px;border-radius:12px;background:#0f1836;border:1px solid rgba(255,255,255,.08)}
-  .dir button:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(0,0,0,.25)}
-  ol.stops{margin:0;padding-left:18px}
-  li.stop{margin:6px 0;padding:6px 8px;border-left:3px solid rgba(255,255,255,.12);cursor:pointer}
-  li.stop:hover{background:rgba(255,255,255,.04)}
-  .badge{display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.06);font-size:12px}
-  .footer{padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);font-size:12px;color:var(--muted)}
-  .hint{padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;margin:8px 0}
-  .tiny{font-size:11px;color:var(--muted)}
-  @media (max-width:900px){.app{grid-template-columns:1fr}}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Radio Rap France — Écoute H24</title>
+  <style>
+    :root{--bg:#0f0f12;--card:#121217;--accent:#1db954;--muted:#9aa0a6;color-scheme:dark}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,#07070a 0%, #0f0f12 100%);color:#eee;display:flex;align-items:center;justify-content:center}
+    .wrap{width:980px;max-width:96%;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+    .now{display:flex;gap:20px}
+    .thumb{width:320px;height:320px;background:#222;border-radius:8px;flex:0 0 320px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .meta{flex:1;display:flex;flex-direction:column;justify-content:space-between}
+    h1{margin:0 0 6px 0;font-size:24px}
+    .artist{color:var(--muted);margin-bottom:10px}
+    .progress{height:12px;background:#222;border-radius:999px;overflow:hidden;margin-top:6px}
+    .progress > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#7ef2b0)}
+    .controls{display:flex;gap:12px;align-items:center}
+    .vol{display:flex;gap:8px;align-items:center}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .overlay-disable{position:absolute;inset:0}
+    .suggestions{display:flex;gap:12px;margin-top:14px}
+    .suggest{background:#0b0b0d;padding:10px;border-radius:8px;flex:1;display:flex;gap:10px;align-items:center}
+    .suggest img{width:64px;height:64px;border-radius:6px;object-fit:cover}
+    .vote-btn{padding:6px 8px;border-radius:6px}
+    .hidden{display:none}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    .admin-hint{font-size:12px;color:var(--muted)}
+  </style>
 </head>
 <body>
-<div class="app">
-  <section class="panel" id="left">
-    <h2>🚌🚈 Lignes TBM <span class="subtle" id="count"></span></h2>
-    <div class="search"><input id="q" placeholder="Rechercher une ligne… (ex: A, 4, Lianes 1)" /></div>
-    <div class="body"><div id="lines" class="list"></div><div class="empty" id="linesEmpty" style="display:none">Aucune ligne</div></div>
-    <div class="footer">Données statiques + temps réel TBM</div>
-  </section>
-  <section class="panel" id="right">
-    <h2 id="rightTitle">Sélectionnez une ligne</h2>
-    <div class="body" id="rightBody"><div class="hint">Clique une ligne, une direction, puis un arrêt pour voir l’arrivée en temps réel.</div></div>
-    <div class="footer" id="meta"></div>
-  </section>
-</div>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <strong>Radio Rap France</strong>
+        <div style="font-size:13px;color:var(--muted)">Musique française — Rap — Playlist automatique</div>
+      </div>
+      <div style="font-size:13px;color:var(--muted)">Volume (local): <input id="userVolume" type="range" min="0" max="100" value="100" style="vertical-align:middle"></div>
+    </div>
 
-<script>
-/* --- parser CSV --- */
-function parseCSV(text){const rows=[];let i=0,field='',row=[],inQuotes=false;while(i<text.length){const c=text[i];if(inQuotes){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else inQuotes=false;}else field+=c;}else{if(c==='"')inQuotes=true;else if(c===','){row.push(field);field='';}else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}else if(c!=='\r')field+=c;}i++;}if(field.length||row.length){row.push(field);rows.push(row);}const h=rows.shift();return rows.map(r=>Object.fromEntries(h.map((hh,idx)=>[hh,r[idx]??""])))}
+    <div class="now" style="position:relative;margin-top:16px">
+      <div class="thumb" id="thumb"><img src="" alt="cover"></div>
+      <div class="meta">
+        <div>
+          <h1 id="title">Chargement...</h1>
+          <div class="artist" id="artist">—</div>
+          <div class="progress" title="Progress"><i id="progressBar"></i></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:6px"><span id="timeLeft">--:--</span><span id="duration">--:--</span></div>
+        </div>
 
-/* --- mini JSZip placeholder (met la vraie lib si besoin) --- */
-!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var t=("undefined"!=typeof window?window:this);t.JSZip=e()}}(function(){/* … lib minifiée complète à coller … */});
-</script>
+        <div>
+          <div class="suggestions hidden" id="suggestions">
+            <!-- suggestions injected here when 20s left -->
+          </div>
+        </div>
+      </div>
+    </div>
 
-<script>
-(async () => {
-  const gtfsURL="https://bdx.mecatran.com/utw/ws/gtfsfeed/static/bordeaux?apiKey=opendata-bordeaux-metropole-flux-gtfs-rt";
-  const state={routes:[],trips:[],stops:[],stop_times:[],by:{stopsById:{},tripsByRoute:{}}};
-  const rightTitle=document.getElementById('rightTitle'),rightBody=document.getElementById('rightBody'),
-        meta=document.getElementById('meta'),linesWrap=document.getElementById('lines'),
-        linesEmpty=document.getElementById('linesEmpty'),countEl=document.getElementById('count'),q=document.getElementById('q');
+    <footer>Vous ne pouvez pas changer la musique (sauf admin local). Vous pouvez seulement ajuster le volume local (pour vous). Admin: <code>/admin.html</code></footer>
+  </div>
 
-  function routeColor(r){const h=(r.route_color||"").trim();return/^([0-9A-Fa-f]{6})$/.test(h)?`#${h}`:"var(--accent)";}
-  function pill(line){const n=line.route_short_name||"",long=line.route_long_name||"",c=routeColor(line);
-    const el=document.createElement('div');el.className='pill';
-    el.innerHTML=`<span class="dot" style="background:${c}"></span><strong>${n||long}</strong><span class="subtle">${long&&n?"— "+long:""}</span>`;
-    el.onclick=()=>showLine(line);return el;}
-  function listLines(f=""){linesWrap.innerHTML="";f=f.toLowerCase();const vis=state.routes.filter(r=>(`${r.route_short_name} ${r.route_long_name}`).toLowerCase().includes(f));
-    vis.forEach(r=>linesWrap.appendChild(pill(r)));linesEmpty.style.display=vis.length?"none":"block";countEl.textContent=`(${vis.length}/${state.routes.length})`;}
-  q.oninput=e=>listLines(e.target.value);
+  <!-- YouTube iframe API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
 
-  async function fetchArrayBuffer(u){const r=await fetch(u);if(!r.ok)throw new Error("HTTP "+r.status);return r.arrayBuffer();}
-  const buf=await fetchArrayBuffer(gtfsURL),zip=await JSZip.loadAsync(buf),
-        files={};for(const n of["routes.txt","trips.txt","stops.txt","stop_times.txt"]){files[n]=parseCSV(await zip.file(n).async("string"));}
-  state.routes=files["routes.txt"].filter(r=>r.route_type==="0"||r.route_type==="3");state.trips=files["trips.txt"];state.stops=files["stops.txt"];state.stop_times=files["stop_times.txt"];
-  state.by.stopsById=Object.fromEntries(state.stops.map(s=>[s.stop_id,s]));state.by.tripsByRoute={};for(const t of state.trips){(state.by.tripsByRoute[t.route_id]??=[]).push(t);}
-  listLines();
+  <script>
+  // =====================================================================
+  // CONFIG — no need to change anything. Drop on GitHub and it marche.
+  const ADMIN_CODE = 'RADIOADMIN2025'; // code for admin.html (change there if desired)
+  // A default curated playlist of French rap YouTube video IDs (replaceable by admin locally)
+  const PLAYLIST = [
+    // (These are example IDs — you can replace them in admin.html locally.)
+    'dQw4w9WgXcQ',
+    'kXYiU_JCYtU',
+    '3tmd-ClpJxA',
+    'e-ORhEE9VVg',
+  ];
+  // =====================================================================
 
-  function showLine(route){rightTitle.textContent=`Ligne ${route.route_short_name}`;const trips=state.by.tripsByRoute[route.route_id]||[];
-    const dirs={"0":[],"1":[]};for(const t of trips){dirs[t.direction_id||"0"]?.push(t);}
-    function best(dir){let pick=null,max=0;for(const t of dirs[dir]){const c=state.stop_times.filter(st=>st.trip_id===t.trip_id).length;if(c>max){max=c;pick=t;}}return pick;}
-    const c=routeColor(route);
-    function btn(trip,label){if(!trip)return`<div class=subtle>Aucune donnée ${label}</div>`;return `<button data-trip="${trip.trip_id}" style="border-color:${c}"><strong>${label} → ${trip.trip_headsign}</strong></button>`;}
-    rightBody.innerHTML=`<div class=dir>${btn(best("0"),"Aller")}${btn(best("1"),"Retour")}</div>`;
-    rightBody.querySelectorAll("button[data-trip]").forEach(b=>b.onclick=()=>showStops(b.dataset.trip,c));}
+  // INTERNAL curated list (more reliable) — keep many IDs so the station runs 24/7
+  const CURATED = [
+    'AqWj8h8c9Ew',
+    '2Vv-BfVoq4g',
+    'RgKAFK5djSk',
+    '60ItHLz5WEA',
+    'YQHsXMglC9A',
+    'fLexgOxsZu0'
+  ];
 
-  async function fetchRealtime(stopId){const url=`https://transport.data.gouv.fr/gtfs-rt/siri-lite/stop-monitoring?refdataset=offres-de-services-bus-tram-et-scolaire&stopPointId=${encodeURIComponent(stopId)}`;
-    const j=await (await fetch(url)).json();const visits=j.Siri?.ServiceDelivery?.StopMonitoringDelivery?.[0]?.MonitoredStopVisit||[];
-    const times=visits.map(v=>v.MonitoredVehicleJourney?.MonitoredCall?.ExpectedArrivalTime).filter(Boolean)
-      .map(t=>Math.max(0,Math.round((new Date(t)-new Date())/60000)));return times.sort((a,b)=>a-b)[0];}
+  // We'll combine and sanitize to build runtime playlist
+  let runtimePlaylist = [...PLAYLIST.filter(Boolean), ...CURATED];
 
-  function showStops(trip,c){const seq=state.stop_times.filter(st=>st.trip_id===trip).sort((a,b)=>a.stop_sequence-b.stop_sequence);
-    const items=seq.map(st=>{const s=state.by.stopsById[st.stop_id];return `<li class=stop data-stop="${st.stop_id}"><strong>${s?.stop_name||st.stop_id}</strong> <span class=subtle>(clique)</span></li>`;}).join("");
-    rightBody.innerHTML=`<div><div class=badge><span class=dot style="background:${c}"></span>Arrêts</div><ol class=stops>${items}</ol></div>`;
-    rightBody.querySelectorAll("li.stop").forEach(li=>{li.onclick=async()=>{const sid=li.dataset.stop;li.querySelector(".subtle").textContent="(chargement…)";try{const m=await fetchRealtime(sid);li.querySelector(".subtle").textContent=m!=null?`(≈ ${m} min)`:"(pas de donnée)";}catch(e){li.querySelector(".subtle").textContent="(erreur)"}}});}
-})();
-</script>
+  // State
+  let player;
+  let currentIndex = 0;
+  let progressTimer;
+  let durationSeconds = 0;
+  let suggestionsShown = false;
+  let votes = {}; // {videoId: count} local only
+
+  // DOM
+  const titleEl = document.getElementById('title');
+  const artistEl = document.getElementById('artist');
+  const thumbImg = document.querySelector('#thumb img');
+  const progressBar = document.getElementById('progressBar');
+  const timeLeftEl = document.getElementById('timeLeft');
+  const durationEl = document.getElementById('duration');
+  const suggestionsEl = document.getElementById('suggestions');
+  const userVolume = document.getElementById('userVolume');
+
+  // Volume local only
+  let localVolume = 100;
+  userVolume.addEventListener('input', ()=>{ localVolume = parseInt(userVolume.value,10); if(player && player.setVolume) try{player.setVolume(localVolume)}catch(e){} });
+
+  // Create invisible player container
+  const playerDiv = document.createElement('div');
+  playerDiv.id = 'ytplayer';
+  playerDiv.style.display = 'none';
+  document.body.appendChild(playerDiv);
+
+  function safePickNextIndex(excludeIndex){
+    if(runtimePlaylist.length===0) return -1;
+    let idx = Math.floor(Math.random()*runtimePlaylist.length);
+    if(idx===excludeIndex && runtimePlaylist.length>1) idx = (idx+1)%runtimePlaylist.length;
+    return idx;
+  }
+
+  function onYouTubeIframeAPIReady(){
+    player = new YT.Player('ytplayer', {
+      height: '0', width: '0',
+      playerVars: { autoplay: 1, controls: 0, disablekb:1, modestbranding:1, rel:0 },
+      events: {
+        'onReady': ()=>{ loadAndPlay(currentIndex); },
+        'onStateChange': onPlayerStateChange
+      }
+    });
+  }
+  window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+  function loadAndPlay(index){
+    if(runtimePlaylist.length===0) return;
+    currentIndex = ((index%runtimePlaylist.length)+runtimePlaylist.length)%runtimePlaylist.length;
+    const vid = runtimePlaylist[currentIndex];
+    // Reset UI
+    suggestionsShown = false; suggestionsEl.classList.add('hidden'); suggestionsEl.innerHTML=''; votes = {}; progressBar.style.width='0%';
+
+    // load video
+    try{ player.loadVideoById({videoId: vid, startSeconds:0}); player.setVolume(localVolume);}catch(e){ console.error(e); }
+    // Attempt to fetch simple metadata from oEmbed (no key)
+    fetch('https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v='+vid+'&format=json')
+      .then(r=>r.json()).then(data=>{
+        titleEl.textContent = data.title || 'Titre inconnu';
+        artistEl.textContent = (data.author_name ? data.author_name : 'Artiste');
+        thumbImg.src = data.thumbnail_url || '';
+      }).catch(()=>{
+        titleEl.textContent = 'Titre inconnu'; artistEl.textContent='Artiste'; thumbImg.src='';
+      });
+  }
+
+  function onPlayerStateChange(e){
+    if(e.data===YT.PlayerState.PLAYING){
+      durationSeconds = Math.floor(player.getDuration()||0);
+      durationEl.textContent = formatTime(durationSeconds);
+      // start progress timer
+      clearInterval(progressTimer);
+      progressTimer = setInterval(()=>{
+        const pos = Math.floor(player.getCurrentTime()||0);
+        const left = Math.max(0, durationSeconds - pos);
+        timeLeftEl.textContent = '-'+formatTime(left);
+        const pct = durationSeconds>0 ? (pos/durationSeconds*100) : 0;
+        progressBar.style.width = pct+'%';
+        // when 20s left -> show suggestions
+        if(!suggestionsShown && left<=20){ showSuggestions(); suggestionsShown=true; }
+      }, 500);
+    }
+    if(e.data===YT.PlayerState.ENDED){
+      clearInterval(progressTimer);
+      chooseNextAfterVote();
+    }
+  }
+
+  function showSuggestions(){
+    // pick 3 different candidates
+    const choices = [];
+    const idxs = new Set();
+    while(choices.length<3 && idxs.size<runtimePlaylist.length){
+      const i = safePickNextIndex(currentIndex);
+      idxs.add(i);
+      if(i!==currentIndex) choices.push(runtimePlaylist[i]);
+    }
+    suggestionsEl.innerHTML='';
+    choices.forEach(vid=>{
+      const container = document.createElement('div'); container.className='suggest';
+      const img = document.createElement('img'); img.src = 'https://i.ytimg.com/vi/'+vid+'/hqdefault.jpg';
+      const info = document.createElement('div');
+      info.style.flex='1';
+      const t = document.createElement('div'); t.textContent='Chargement...';
+      const a = document.createElement('div'); a.style.color='var(--muted)'; a.style.fontSize='13px'; a.textContent='—';
+      // fetch oembed for title
+      fetch('https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v='+vid+'&format=json').then(r=>r.json()).then(d=>{ t.textContent=d.title; a.textContent=d.author_name; }).catch(()=>{});
+      info.appendChild(t); info.appendChild(a);
+      const voteBtn = document.createElement('button'); voteBtn.className='vote-btn'; voteBtn.textContent='Voter';
+      voteBtn.addEventListener('click', ()=>{ votes[vid] = (votes[vid]||0)+1; voteBtn.textContent = 'Voté ('+votes[vid]+')'; });
+      container.appendChild(img); container.appendChild(info); container.appendChild(voteBtn);
+      suggestionsEl.appendChild(container);
+    });
+    suggestionsEl.classList.remove('hidden');
+    // auto-select after 15 seconds or when video ends (we also check on ended)
+    setTimeout(()=>{ if(player && player.getPlayerState()===YT.PlayerState.PLAYING) chooseNextAfterVote(); }, 15000);
+  }
+
+  function chooseNextAfterVote(){
+    // pick highest voted; if all zero -> random
+    let winner = null; let best = -1; let totalVotes = 0;
+    Object.keys(votes).forEach(k=>{ totalVotes += votes[k]; if(votes[k]>best){ best=votes[k]; winner=k; }});
+    if(totalVotes===0){ // pick random among playlist except current
+      const idx = safePickNextIndex(currentIndex);
+      loadAndPlay(idx);
+    } else {
+      // if winner present find index
+      const idx = runtimePlaylist.indexOf(winner);
+      if(idx===-1){ loadAndPlay(safePickNextIndex(currentIndex)); } else { loadAndPlay(idx); }
+    }
+  }
+
+  function formatTime(s){
+    if(!isFinite(s) || s<0) return '--:--';
+    const mm = Math.floor(s/60); const ss = Math.floor(s%60); return mm+':'+(ss<10?('0'+ss):ss);
+  }
+
+  // Initial behavior: try to start with the first usable ID, else random
+  (function initPlaylist(){
+    // remove placeholder-ish short wrong ids
+    runtimePlaylist = runtimePlaylist.filter(id=>id && id.length>2);
+    if(runtimePlaylist.length===0) runtimePlaylist = [...CURATED];
+    currentIndex = 0;
+    // autoplay will start when YT API ready
+  })();
+
+  // Prevent user interactions that change music (remove contextmenu / keyboard)
+  document.addEventListener('keydown', e=>{ if(['Space','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault(); });
+  document.addEventListener('contextmenu', e=>e.preventDefault());
+
+  // Expose a little API for admin.html when opened on same origin (local only):
+  window.__radio_admin = {
+    playNow: function(videoId){
+      // if videoId in playlist use it otherwise push at next slot then play
+      let idx = runtimePlaylist.indexOf(videoId);
+      if(idx===-1){ runtimePlaylist.splice(currentIndex+1,0,videoId); idx = currentIndex+1; }
+      loadAndPlay(idx);
+    },
+    addToPlaylist: function(videoId){ runtimePlaylist.push(videoId); }
+  };
+
+  </script>
 </body>
 </html>
