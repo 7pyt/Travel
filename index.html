@@ -5,398 +5,163 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Radio 24/7 — Lecteur synchronisé</title>
 <style>
-  :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#7c3aed;color-scheme:dark}
-  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,#071021 0%, #081226 60%);color:#e6eef6}
-  .wrap{max-width:980px;margin:32px auto;padding:20px;background:rgba(255,255,255,0.02);border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
-  h1{margin:0 0 12px;font-size:20px}
-  .player{display:flex;gap:18px;align-items:center}
-  .art{width:140px;height:140px;border-radius:8px;background:linear-gradient(180deg,#0b1220,#081226);display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden}
-  .meta{flex:1;min-width:0}
-  .track{font-size:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  :root{--bg:#0f1724;--muted:#9aa4b2;--accent:#7c3aed;color-scheme:dark}
+  body{margin:0;font-family:sans-serif;background:#0f1724;color:white;display:flex;justify-content:center;padding:20px}
+  .wrap{max-width:800px;width:100%}
+  .player{display:flex;gap:16px;align-items:center;margin-top:20px}
+  .art{width:140px;height:140px;border-radius:8px;background:#111;display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden}
+  .meta{flex:1}
+  .track{font-size:20px;font-weight:600}
   .artist{color:var(--muted);font-size:14px;margin-top:6px}
-  .time{margin-top:10px;color:var(--muted);font-size:13px}
-  .controls{display:flex;gap:10px;align-items:center;margin-top:14px}
-  button.primary{background:linear-gradient(90deg,var(--accent),#5b21b6);border:0;padding:10px 14px;border-radius:8px;color:white;font-weight:600;cursor:pointer}
-  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:var(--muted);cursor:pointer}
-  .vol{display:flex;gap:8px;align-items:center}
-  input[type="range"]{accent-color: #7c3aed}
-  .small{font-size:13px;color:var(--muted)}
-  textarea{width:100%;min-height:100px;background:transparent;border:1px dashed rgba(255,255,255,0.04);color:inherit;padding:10px;border-radius:6px}
-  .hint{font-size:13px;color:var(--muted);margin-top:8px}
-  .footer{margin-top:18px;font-size:13px;color:var(--muted)}
-  .hidden{display:none}
+  .time{margin-top:8px;color:var(--muted);font-size:13px}
+  .controls{margin-top:14px;display:flex;align-items:center;gap:10px}
+  button{cursor:pointer;border:none;padding:10px 14px;border-radius:8px;font-weight:600}
+  .primary{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white}
+  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted)}
+  input[type=range]{accent-color:var(--accent)}
+  .footer{margin-top:20px;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Radio 24/7 — lecture synchronisée</h1>
+  <h1>Radio 24/7</h1>
+  <div id="status">Chargement de la playlist…</div>
 
-  <div id="status" class="small">Initialisation…</div>
-
-  <div class="player" style="margin-top:12px">
-    <div class="art" id="art">
-      <div id="art-placeholder">Aucune pochette</div>
-    </div>
+  <div class="player">
+    <div class="art" id="art">—</div>
     <div class="meta">
       <div class="track" id="title">—</div>
       <div class="artist" id="artist">—</div>
       <div class="time" id="time">—</div>
-
       <div class="controls">
         <button id="listenBtn" class="primary">Écouter</button>
-        <button id="refreshMeta" class="ghost" title="Forcer la recherche des métadatas">Refresh métadatas</button>
-
-        <div style="width:20px"></div>
-
-        <div class="vol">
-          <label class="small">Volume local</label>
-          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8">
-        </div>
+        <div style="flex:1"></div>
+        <label style="font-size:12px">Volume</label>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8">
       </div>
     </div>
   </div>
 
-  <div style="margin-top:18px">
-    <div class="small">Détection du dossier <code>/musique/</code> (liste automatique) — si votre serveur n'affiche pas l'index, collez ci-dessous les URLs des MP3 (une par ligne) puis cliquez sur <em>Charger</em>.</div>
-    <textarea id="manualList" placeholder="https://ton-site/musique/01 - Titre.mp3
-https://ton-site/musique/02 - Autre titre.mp3"></textarea>
-    <div style="margin-top:8px">
-      <button id="loadManual" class="ghost">Charger</button>
-      <button id="tryScan" class="ghost">Forcer scan du dossier /musique/</button>
-    </div>
-    <div id="log" class="hint"></div>
-  </div>
-
   <div class="footer">
-    Notes : les métadonnées sont recherchées via l'API iTunes. Synchronisation locale entre clients via horodatage UTC et durée des pistes. Pour que tout fonctionne bien, servez ce fichier depuis le même domaine que le dossier <code>/musique/</code>.
+    Playlist chargée depuis <code>list.json</code> (chemins relatifs vers tes mp3).<br>
+    Métadonnées récupérées via l’API iTunes.
   </div>
 </div>
 
 <script>
-/*
-  Radio 24/7 single-file HTML
-  - Essaie de récupérer automatiquement la liste de /musique/
-  - Si impossible, l'utilisateur peut coller des URLs
-  - Charge les durées audio, construit une playlist shufflée déterministe
-  - Synchronise la position en se basant sur une epoch fixe et la durée totale
-  - Recherche metadata via iTunes API
-  - Affiche titre / artiste / pochette et temps restant
-  - Bouton "Écouter" pour contourner l'autoplay
-*/
-
-const MUSIC_DIR = '/musique/'; // chemin relatif au site
-const CYCLE_EPOCH = Date.UTC(2025,0,1,0,0,0); // point de départ de la rotation (1 Jan 2025 UTC) — même pour tout le monde
+const CYCLE_EPOCH = Date.UTC(2025,0,1,0,0,0);
 const itunesBase = 'https://itunes.apple.com/search?media=music&entity=song&limit=1&term=';
 
-let playlist = []; // {url, fileName, duration, meta:{artist,track,artwork}}
-let order = []; // indices de playlist dans l'ordre de lecture (shuffle par cycle)
-let audioElements = []; // Audio objects for duration & playback
+let playlist = []; // {url, fileName, duration, meta}
+let order = [];
 let masterAudio = new Audio();
-masterAudio.crossOrigin = "anonymous";
 let started = false;
-let updateTimer = null;
+let updateTimer=null;
+let currentOrderIndex=0;
 
-const statusEl = document.getElementById('status');
-const titleEl = document.getElementById('title');
-const artistEl = document.getElementById('artist');
-const artEl = document.getElementById('art');
-const timeEl = document.getElementById('time');
-const listenBtn = document.getElementById('listenBtn');
-const volumeEl = document.getElementById('volume');
-const manualListArea = document.getElementById('manualList');
-const loadManualBtn = document.getElementById('loadManual');
-const tryScanBtn = document.getElementById('tryScan');
-const logEl = document.getElementById('log');
-const refreshMetaBtn = document.getElementById('refreshMeta');
+const statusEl=document.getElementById('status');
+const titleEl=document.getElementById('title');
+const artistEl=document.getElementById('artist');
+const artEl=document.getElementById('art');
+const timeEl=document.getElementById('time');
+const listenBtn=document.getElementById('listenBtn');
+const volumeEl=document.getElementById('volume');
 
-volumeEl.addEventListener('input', ()=>{ masterAudio.volume = parseFloat(volumeEl.value); });
+volumeEl.addEventListener('input',()=>{masterAudio.volume=parseFloat(volumeEl.value)});
+listenBtn.addEventListener('click',()=>{ if(!started) startPlayback(); });
 
-listenBtn.addEventListener('click', async () => {
-  if (!started) {
-    await startPlayback();
-  } else {
-    // toggle? We'll keep single functionality: start if not started.
-  }
-});
+function status(s){ statusEl.textContent=s; }
+function getFileName(u){ return decodeURIComponent(u.split('/').pop().split('?')[0]); }
 
-loadManualBtn.addEventListener('click', ()=> {
-  const text = manualListArea.value.trim();
-  if (!text) { log('Aucune URL fournie.'); return; }
-  const urls = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  prepareFromURLs(urls);
-});
-
-tryScanBtn.addEventListener('click', ()=> {
-  scanMusicDir(true);
-});
-
-refreshMetaBtn.addEventListener('click', ()=> {
-  fetchAllMetadatas().catch(e=>console.warn(e));
-});
-
-// Helpers
-function log(s){ logEl.textContent = s; }
-
-async function scanMusicDir(force=false){
-  status('Scan du dossier /musique/ …');
-  try {
-    const resp = await fetch(MUSIC_DIR, {cache: "no-store"});
-    if (!resp.ok) throw new Error('Pas d\'index ou accès interdit');
-    const text = await resp.text();
-    // naive parse: extract href attributes ending in .mp3
-    const urls = Array.from(text.matchAll(/href="([^"]+\.mp3)"/ig)).map(m=>m[1]);
-    if (urls.length === 0) {
-      // essayer liens sans quotes (rare)
-      const urls2 = Array.from(text.matchAll(/href=([^ >]+\.mp3)/ig)).map(m=>m[1]);
-      if (urls2.length) urls.push(...urls2);
-    }
-    // normalize relative links
-    const base = new URL(location.href);
-    const normalized = urls.map(u => new URL(u, base).href);
-    if (normalized.length===0) throw new Error('Aucun mp3 détecté dans /musique/');
-    prepareFromURLs(normalized);
-  } catch (err) {
-    status('Impossible de scanner /musique/: ' + err.message);
-    log('Si ton serveur n’affiche pas l’index, colle ci-dessous les URLs des mp3 et clique "Charger".');
-    console.warn(err);
-  }
+async function loadPlaylist(){
+  try{
+    const r=await fetch('list.json',{cache:'no-store'});
+    const arr=await r.json();
+    playlist=arr.map(u=>({url:u,fileName:getFileName(u),duration:0,meta:null}));
+    await Promise.all(playlist.map(p=>loadDuration(p)));
+    buildShuffle();
+    await Promise.all(playlist.map(p=>fetchMetadata(p)));
+    status('Prêt — clique "Écouter"');
+  }catch(e){ status('Erreur chargement list.json: '+e); }
 }
 
-function status(s){ statusEl.textContent = s; }
-
-function getFileNameFromUrl(u){
-  try {
-    return decodeURIComponent(u.split('/').pop().split('?')[0]);
-  } catch(e){ return u; }
-}
-
-async function prepareFromURLs(urls){
-  status('Construction de la playlist…');
-  // reset
-  playlist = [];
-  audioElements.forEach(a=>{ try{ a.pause(); a.src=''; }catch(e){}});
-  audioElements = [];
-  masterAudio.pause();
-  masterAudio.src = '';
-
-  for (let u of urls){
-    const fileName = getFileNameFromUrl(u);
-    playlist.push({url:u, fileName, duration:0, meta:null});
-  }
-  // create hidden audio elements to preload metadata durations
-  status('Chargement des métadatas audio (durées)…');
-  await Promise.all(playlist.map((p, idx) => loadDurationFor(p, idx)));
-  status('Durées chargées. Construction de l’ordre de lecture...');
-  buildDeterministicShuffle();
-  status('Récupération des métadonnées (iTunes) …');
-  await fetchAllMetadatas();
-  status('Prêt. Clique "Écouter" pour démarrer la radio (autoplay bloqué par le navigateur).');
-}
-
-function loadDurationFor(p, idx){
-  return new Promise((resolve)=>{
-    const a = new Audio();
-    a.preload = 'metadata';
-    a.crossOrigin = "anonymous";
-    a.src = p.url;
-    audioElements[idx] = a;
-    const tHandler = ()=> {
-      p.duration = isFinite(a.duration) && a.duration>0 ? a.duration : 0;
-      a.removeEventListener('loadedmetadata', tHandler);
-      resolve();
+function loadDuration(p){
+  return new Promise(res=>{
+    const a=new Audio();
+    a.preload='metadata'; a.src=p.url; a.onloadedmetadata=()=>{
+      p.duration=isFinite(a.duration)?a.duration:180; res();
     };
-    a.addEventListener('loadedmetadata', tHandler);
-    // timeout fallback
-    setTimeout(()=> {
-      if (!p.duration) {
-        p.duration = 180; // fallback 3 minutes
-      }
-      resolve();
-    }, 8000);
+    setTimeout(()=>{if(!p.duration)p.duration=180;res();},5000);
   });
 }
 
-function simpleSeededShuffle(n, seed) {
-  // return array 0..n-1 shuffled using a seeded PRNG (Fisher-Yates)
-  const arr = Array.from({length:n}, (_,i)=>i);
-  let s = seed >>> 0;
-  function rand(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 0x100000000; }
-  for (let i = n-1; i>0; i--){
-    const j = Math.floor(rand()*(i+1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+function buildShuffle(){
+  const n=playlist.length; if(!n)return;
+  order=Array.from({length:n},(_,i)=>i);
+  for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+  if(n>1 && order[0]===order[n-1]) [order[0],order[1]]=[order[1],order[0]];
 }
 
-function buildDeterministicShuffle(){
-  const n = playlist.length;
-  if (n===0) { order=[]; return; }
-  // seed derived from fixed epoch (so all clients compute same order permanently)
-  // combine epoch day number so order changes slowly if desired; here we keep stable
-  const seed = 1234567; // constant seed -> same order for all
-  order = simpleSeededShuffle(n, seed);
-
-  // ensure no immediate repeats when cycling: if last of order equals first, swap first with another
-  if (n>1 && order[0] === order[n-1]) {
-    [order[0], order[1]] = [order[1], order[0]];
-  }
-}
-
-async function fetchMetadataFor(p){
-  // derive clean search term from filename: remove track numbers and extension
-  let q = p.fileName.replace(/\.[^.]+$/, '').replace(/^\d+\s*[-_.\s]*/,'').replace(/[_._]/g,' ');
-  q = q.replace(/\(.*?\)/g,'').replace(/\[.*?\]/g,'').trim();
-  if (!q) q = p.fileName;
-  const url = itunesBase + encodeURIComponent(q);
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('itunes error');
-    const j = await r.json();
-    if (j.resultCount > 0) {
-      const t = j.results[0];
-      p.meta = {
-        artist: t.artistName || '',
-        track: t.trackName || p.fileName,
-        artwork: (t.artworkUrl100 || '').replace('100x100','600x600')
-      };
+async function fetchMetadata(p){
+  let q=p.fileName.replace(/\.[^.]+$/,'').replace(/^\d+[-_.\s]*/,'');
+  const url=itunesBase+encodeURIComponent(q);
+  try{
+    const r=await fetch(url); const j=await r.json();
+    if(j.resultCount>0){
+      const t=j.results[0];
+      p.meta={artist:t.artistName,track:t.trackName,artwork:t.artworkUrl100.replace('100x100','600x600')};
       return;
     }
-  } catch(e){
-    // ignore
+  }catch(e){}
+  p.meta={artist:'',track:p.fileName,artwork:null};
+}
+
+function getTotalDuration(){return playlist.reduce((s,p)=>s+(p.duration||0),0)||1;}
+function computePos(){
+  let elapsed=(Date.now()-CYCLE_EPOCH)/1000;
+  let t=elapsed%getTotalDuration();
+  for(let i=0;i<order.length;i++){
+    let d=playlist[order[i]].duration||1;
+    if(t<d) return {orderIndex:i,time:t};
+    t-=d;
   }
-  // fallback to filename-only metadata
-  p.meta = { artist: '', track: p.fileName, artwork: null };
+  return {orderIndex:0,time:0};
 }
 
-async function fetchAllMetadatas(){
-  const tasks = playlist.map(p => fetchMetadataFor(p));
-  await Promise.all(tasks);
-  // update display if currently playing
-  updateNowInfo();
+function playOrderIndex(idx,offset=0){
+  currentOrderIndex=idx;
+  const p=playlist[order[idx]];
+  masterAudio.src=p.url;
+  masterAudio.currentTime=offset;
+  masterAudio.play().catch(()=>status('Clique "Écouter" pour lancer'));
+  updateInfo();
 }
 
-function getTotalPlaylistDuration(){
-  return playlist.reduce((s,p)=>s + (p.duration || 0), 0) || 1;
-}
-
-function computeCyclePosition(){
-  // Using a fixed epoch ensures all clients compute same cycle position
-  const now = Date.now();
-  let elapsed = (now - CYCLE_EPOCH) / 1000; // seconds since epoch start
-  const total = getTotalPlaylistDuration();
-  let t = elapsed % total;
-  // walk through order to find current track and offset
-  for (let idx=0; idx<order.length; idx++){
-    const p = playlist[order[idx]];
-    const d = p.duration || 0.0001;
-    if (t < d) {
-      return {orderIndex: idx, timeInTrack: t};
-    }
-    t -= d;
-  }
-  // fallback
-  return {orderIndex:0, timeInTrack:0};
-}
-
-async function startPlayback(){
-  if (playlist.length===0) {
-    status('Playlist vide — tentative de scan automatique.');
-    await scanMusicDir();
-    if (playlist.length===0) { status('Aucun mp3 trouvé — colle les URLs puis clique "Charger".'); return; }
-  }
-  started = true;
-  listenBtn.textContent = 'En écoute';
-  listenBtn.disabled = true;
-  // set volume
-  masterAudio.volume = parseFloat(volumeEl.value || 0.8);
-  masterAudio.preload = 'metadata';
-  masterAudio.crossOrigin = "anonymous";
-
-  // determine which track and position to start at
-  const pos = computeCyclePosition();
-  playOrderIndex(pos.orderIndex, pos.timeInTrack);
-  // update UI each second
-  if (updateTimer) clearInterval(updateTimer);
-  updateTimer = setInterval(()=> {
-    updateNowInfo();
-    // if reached end of track (with 1s tolerance), advance to next
-    if (masterAudio.duration && masterAudio.currentTime + 0.9 >= masterAudio.duration) {
-      // advance to next track in deterministic order
-      const nextOrderIndex = (currentOrderIndex + 1) % order.length;
-      playOrderIndex(nextOrderIndex, 0);
-    }
-  }, 800);
-}
-
-let currentOrderIndex = 0;
-function playOrderIndex(orderIdx, startOffsetSeconds=0){
-  currentOrderIndex = orderIdx;
-  const pIndex = order[orderIdx];
-  const p = playlist[pIndex];
-  if (!p) { console.warn('P inexistant', pIndex); return; }
-  // switch masterAudio src to p.url and set currentTime once metadata is loaded
-  masterAudio.pause();
-  masterAudio.src = p.url + (p.url.includes('?') ? '&' : '?') + 'cachebust=' + Math.random(); // avoid aggressive caching for position setting
-  masterAudio.currentTime = Math.max(0, startOffsetSeconds);
-  masterAudio.play().catch(e => {
-    console.warn('Lecture bloquée', e);
-    status('Lecture bloquée par le navigateur — clique "Écouter".');
-  });
-  // update UI
-  updateNowInfo();
-  // prefetch next track metadata/duration if needed
-  const nextIdx = (orderIdx + 1) % order.length;
-  const nextP = playlist[order[nextIdx]];
-  if (nextP && audioElements[nextIdx] && audioElements[nextIdx].src !== nextP.url) {
-    // nothing strict to do; browser may cache
+function updateInfo(){
+  const p=playlist[order[currentOrderIndex]];
+  if(!p)return;
+  titleEl.textContent=p.meta?p.meta.track:p.fileName;
+  artistEl.textContent=p.meta?p.meta.artist:'';
+  if(p.meta&&p.meta.artwork){artEl.style.backgroundImage=`url(${p.meta.artwork})`;artEl.textContent='';}
+  else {artEl.style.backgroundImage='';artEl.textContent='—';}
+  if(masterAudio.duration){
+    let rem=masterAudio.duration-masterAudio.currentTime;
+    timeEl.textContent=`${fmt(masterAudio.currentTime)} / ${fmt(masterAudio.duration)} — restant ${fmt(rem)}`;
   }
 }
 
-function formatTimeSec(s){
-  if (!isFinite(s) || s < 0) return '—';
-  const m = Math.floor(s/60); const sec = Math.floor(s%60).toString().padStart(2,'0');
-  return `${m}:${sec}`;
+function fmt(s){if(!isFinite(s))return'—';const m=Math.floor(s/60);const sec=Math.floor(s%60).toString().padStart(2,'0');return`${m}:${sec}`;}
+
+function startPlayback(){
+  started=true;listenBtn.disabled=true;masterAudio.volume=parseFloat(volumeEl.value);
+  const pos=computePos(); playOrderIndex(pos.orderIndex,pos.time);
+  updateTimer=setInterval(()=>{updateInfo();
+    if(masterAudio.duration&&masterAudio.currentTime+0.5>=masterAudio.duration){
+      playOrderIndex((currentOrderIndex+1)%order.length,0);
+    }},1000);
 }
 
-function updateNowInfo(){
-  if (!playlist.length) return;
-  const p = playlist[order[currentOrderIndex]];
-  // Title / artist
-  if (p && p.meta) {
-    titleEl.textContent = p.meta.track || p.fileName;
-    artistEl.textContent = p.meta.artist || '';
-    if (p.meta.artwork) {
-      artEl.style.backgroundImage = `url('${p.meta.artwork}')`;
-      artEl.style.backgroundSize = 'cover';
-      artEl.innerHTML = '';
-    } else {
-      artEl.style.backgroundImage = '';
-      artEl.innerHTML = '<div id="art-placeholder">Aucune pochette</div>';
-    }
-  } else if (p) {
-    titleEl.textContent = p.fileName;
-    artistEl.textContent = '';
-  }
-  // time remaining: prefer masterAudio currentTime/duration; fallback to calculate
-  let remaining = null;
-  if (masterAudio && masterAudio.src && masterAudio.duration && masterAudio.currentTime >= 0) {
-    remaining = masterAudio.duration - masterAudio.currentTime;
-    timeEl.textContent = `${formatTimeSec(masterAudio.currentTime)} / ${formatTimeSec(masterAudio.duration)} — restant ${formatTimeSec(remaining)}`;
-  } else {
-    // estimate from cycle
-    const pos = computeCyclePosition();
-    const dur = p.duration || 0;
-    const rem = Math.max(0, dur - pos.timeInTrack);
-    timeEl.textContent = `restant ~${formatTimeSec(rem)} (estimation)`;
-  }
-
-  // status
-  status(`Lecture: ${getFileNameFromUrl(p.url)} — ${playlist.length} piste(s) — heure UTC: ${new Date().toISOString()}`);
-}
-
-// initial attempt to auto-scan
-scanMusicDir().catch(()=>{ /* ignore */ });
-
+loadPlaylist();
 </script>
 </body>
 </html>
