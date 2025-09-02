@@ -1,93 +1,55 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin — Radio Rap France</title>
-  <style>
-    body{font-family:Inter,system-ui,Arial;background:#0f0f12;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .card{width:720px;background:#121217;padding:20px;border-radius:12px}
-    input,button,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
-    .row{display:flex;gap:10px}
-    .row>div{flex:1}
-    .muted{color:#9aa0a6;font-size:13px}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Radio 24/7</title>
+<style>
+body{font-family:sans-serif;background:#0f1724;color:white;padding:20px}
+h1{color:#7c3aed}
+ul{list-style:none;padding:0}
+li{margin:8px 0}
+button{padding:6px 12px;background:#7c3aed;border:none;color:white;border-radius:6px;cursor:pointer}
+</style>
 </head>
 <body>
-  <div class="card">
-    <h2>Admin — Radio Rap France</h2>
-    <div id="loginBox">
-      <div class="muted">Entrez le code admin pour accéder au panneau</div>
-      <input id="code" placeholder="Code admin" />
-      <button id="login">Se connecter</button>
-    </div>
+<h1>Admin Radio 24/7</h1>
+<ul id="tracks">Chargement…</ul>
 
-    <div id="panel" style="display:none">
-      <div class="muted">Coller un lien YouTube ou un ID vidéo ci-dessous pour jouer immédiatement sur cette instance (local only) :</div>
-      <input id="yturl" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
-      <div style="height:10px"></div>
-      <div class="row"><div><button id="playNow">Jouer maintenant</button></div><div><button id="addToList">Ajouter à la playlist</button></div></div>
-      <div style="height:12px"></div>
-      <div class="muted">Playlist runtime (local) — Les modifications affectent seulement cette instance où l'admin est connecté :</div>
-      <textarea id="pl" rows="6" readonly></textarea>
-    </div>
+<script>
+// mot de passe simple
+const PASSWORD = "monmotdepasse"; // change-le
+const userInput = prompt("Mot de passe admin :");
+if(userInput !== PASSWORD){
+    alert("Mot de passe incorrect !");
+    document.body.innerHTML = "<h2>Accès refusé</h2>";
+    throw "Accès refusé";
+}
 
-    <div style="height:8px"></div>
-    <div class="muted">Code admin par défaut: <strong>RADIOADMIN2025</strong></div>
-  </div>
+let forcedTrack = null; // URL du morceau forcé
 
-  <script>
-    const ADMIN_CODE = 'RADIOADMIN2025';
-    const loginBtn = document.getElementById('login');
-    const codeInput = document.getElementById('code');
-    const panel = document.getElementById('panel');
-    const loginBox = document.getElementById('loginBox');
-    const yturl = document.getElementById('yturl');
-    const playNowBtn = document.getElementById('playNow');
-    const addBtn = document.getElementById('addToList');
-    const pl = document.getElementById('pl');
-
-    loginBtn.addEventListener('click', ()=>{ if(codeInput.value===ADMIN_CODE){ loginBox.style.display='none'; panel.style.display='block'; refreshPlaylist(); } else { alert('Code faux'); } });
-
-    function videoIdFromUrl(u){
-      if(!u) return '';
-      // try common formats
-      try{
-        const url = new URL(u);
-        if(url.hostname.includes('youtu')){
-          if(url.searchParams.get('v')) return url.searchParams.get('v');
-          const p = url.pathname.split('/'); return p[p.length-1];
-        }
-      }catch(e){ }
-      // if not URL, maybe raw id
-      return u.trim();
-    }
-
-    playNowBtn.addEventListener('click', ()=>{
-      const vid = videoIdFromUrl(yturl.value);
-      if(!vid){ alert('ID invalide'); return; }
-      if(window.opener && window.opener.__radio_admin){ window.opener.__radio_admin.playNow(vid); alert('Command sent to opener window'); }
-      else if(window.parent && window.parent.__radio_admin){ window.parent.__radio_admin.playNow(vid); alert('Command sent to same-origin parent'); }
-      else alert('Aucun lecteur admin détecté dans la même origine. Ouvrez index.html dans un autre onglet sur le même domaine pour contrôler localement.');
-      refreshPlaylist();
+async function loadList(){
+    const r = await fetch('list.json');
+    const data = await r.json();
+    const ul = document.getElementById('tracks');
+    ul.innerHTML = '';
+    data.forEach((p)=>{
+        const li = document.createElement('li');
+        li.textContent = p.titre + " — " + p.artiste;
+        const btn = document.createElement('button');
+        btn.textContent = "Forcer";
+        btn.onclick = ()=>{
+            forcedTrack = p.url;
+            alert("Musique forcée : " + p.titre);
+            // envoi un événement à la page index si elle est ouverte dans un autre onglet
+            localStorage.setItem("forcedTrack", p.url + "|" + Date.now());
+        };
+        li.appendChild(btn);
+        ul.appendChild(li);
     });
+}
 
-    addBtn.addEventListener('click', ()=>{
-      const vid = videoIdFromUrl(yturl.value);
-      if(!vid){ alert('ID invalide'); return; }
-      if(window.opener && window.opener.__radio_admin){ window.opener.__radio_admin.addToPlaylist(vid); alert('Ajouté à la playlist de l\'instance'); }
-      else if(window.parent && window.parent.__radio_admin){ window.parent.__radio_admin.addToPlaylist(vid); alert('Ajouté à la playlist'); }
-      else alert('Aucun lecteur admin détecté.');
-      refreshPlaylist();
-    });
-
-    function refreshPlaylist(){
-      // try to read playlist from opener or parent
-      let list = [];
-      try{ if(window.opener && window.opener.runtimePlaylist) list = window.opener.runtimePlaylist; else if(window.parent && window.parent.runtimePlaylist) list = window.parent.runtimePlaylist; }catch(e){}
-      pl.value = (list && list.length>0)? list.join('\n') : '(playlist non disponible dans cette fenêtre)';
-    }
-
-  </script>
+loadList();
+</script>
 </body>
 </html>
