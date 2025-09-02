@@ -17,7 +17,6 @@
   .controls{margin-top:14px;display:flex;align-items:center;gap:10px}
   button{cursor:pointer;border:none;padding:10px 14px;border-radius:8px;font-weight:600}
   .primary{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white}
-  .secondary{background:#444;color:white}
   input[type=range]{accent-color:var(--accent)}
 </style>
 </head>
@@ -34,7 +33,6 @@
       <div class="time" id="time">—</div>
       <div class="controls">
         <button id="listenBtn" class="primary">Écouter</button>
-        <button id="stopBtn" class="secondary">Stop forcage</button>
         <div style="flex:1"></div>
         <label style="font-size:12px">Volume</label>
         <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8">
@@ -43,33 +41,30 @@
   </div>
 
   <div class="footer">
-    Playlist chargée depuis <code>list.json</code> (objets {url,titre,artiste}).<br>
-    Admin intégré via localStorage.
+    Playlist chargée depuis <code>list.json</code> (objets {url,titre,artiste}).
   </div>
 </div>
 
 <script>
 const CYCLE_EPOCH = Date.UTC(2025,0,1,0,0,0);
+
 let playlist = []; // {url,titre,artiste,duration}
 let order = [];
 let masterAudio = new Audio();
 let started = false;
-let updateTimer = null;
-let currentOrderIndex = 0;
-let overrideActive = false;
+let updateTimer=null;
+let currentOrderIndex=0;
 
-const statusEl = document.getElementById('status');
-const titleEl = document.getElementById('title');
-const artistEl = document.getElementById('artist');
-const artEl = document.getElementById('art');
-const timeEl = document.getElementById('time');
-const listenBtn = document.getElementById('listenBtn');
-const stopBtn = document.getElementById('stopBtn');
-const volumeEl = document.getElementById('volume');
+const statusEl=document.getElementById('status');
+const titleEl=document.getElementById('title');
+const artistEl=document.getElementById('artist');
+const artEl=document.getElementById('art');
+const timeEl=document.getElementById('time');
+const listenBtn=document.getElementById('listenBtn');
+const volumeEl=document.getElementById('volume');
 
-volumeEl.addEventListener('input', ()=>{ masterAudio.volume=parseFloat(volumeEl.value) });
-listenBtn.addEventListener('click', ()=>{ if(!started) startPlayback(); });
-stopBtn.addEventListener('click', stopForcedTrack);
+volumeEl.addEventListener('input',()=>{masterAudio.volume=parseFloat(volumeEl.value)});
+listenBtn.addEventListener('click',()=>{ if(!started) startPlayback(); });
 
 function status(s){ statusEl.textContent=s; }
 
@@ -116,7 +111,7 @@ function computePos(){
 
 function playOrderIndex(idx,offset=0){
   currentOrderIndex=idx;
-  const p = playlist[order[idx]];
+  const p=playlist[order[idx]];
   masterAudio.src = p.url;
   masterAudio.currentTime = offset;
   masterAudio.play().catch(()=>status('Clique "Écouter" pour lancer'));
@@ -124,13 +119,7 @@ function playOrderIndex(idx,offset=0){
 }
 
 function updateInfo(){
-  let p;
-  if(overrideActive){
-    const forced = localStorage.getItem("forcedTrack");
-    p = playlist.find(x => x.url === forced) || {titre:'Morceau forcé', artiste:''};
-  } else {
-    p = playlist[order[currentOrderIndex]];
-  }
+  const p = playlist[order[currentOrderIndex]];
   if(!p) return;
   titleEl.textContent = p.titre;
   artistEl.textContent = p.artiste;
@@ -146,65 +135,14 @@ function fmt(s){if(!isFinite(s))return'—'; const m=Math.floor(s/60); const sec
 
 function startPlayback(){
   started = true; listenBtn.disabled=true; masterAudio.volume=parseFloat(volumeEl.value);
-  playNextRandom();
+  const pos = computePos(); playOrderIndex(pos.orderIndex,pos.time);
   updateTimer = setInterval(()=>{
     updateInfo();
-    checkForcedTrack();
     if(masterAudio.duration && masterAudio.currentTime+0.5 >= masterAudio.duration){
-      if(overrideActive){
-        overrideActive = false;
-        localStorage.removeItem("forcedTrack");
-        playNextRandom();
-      } else {
-        playOrderIndex((currentOrderIndex+1)%order.length,0);
-      }
+      playOrderIndex((currentOrderIndex+1)%order.length,0);
     }
   },1000);
 }
-
-function playNextRandom(){
-  if(playlist.length===0) return;
-  const idx = Math.floor(Math.random()*playlist.length);
-  currentOrderIndex = idx;
-  masterAudio.src = playlist[idx].url;
-  masterAudio.currentTime = 0;
-  masterAudio.play().catch(()=>status('Clique "Écouter" pour lancer'));
-}
-
-function checkForcedTrack(){
-  const forced = localStorage.getItem("forcedTrack");
-  if(forced){
-    if(!overrideActive || masterAudio.src !== forced){
-      overrideActive = true;
-      masterAudio.src = forced;
-      masterAudio.currentTime = 0;
-      masterAudio.play();
-    }
-  }
-}
-
-function stopForcedTrack(){
-  if(overrideActive){
-    overrideActive = false;
-    localStorage.removeItem("forcedTrack");
-    playNextRandom();
-  }
-}
-
-// détecte override depuis un autre onglet
-window.addEventListener("storage", e=>{
-  if(e.key==="forcedTrack"){
-    const forced = e.newValue;
-    if(forced){
-      overrideActive = true;
-      masterAudio.src = forced.split("|")[0];
-      masterAudio.currentTime = 0;
-      masterAudio.play();
-    } else {
-      stopForcedTrack();
-    }
-  }
-});
 
 loadPlaylist();
 </script>
