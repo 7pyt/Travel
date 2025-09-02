@@ -1,8 +1,32 @@
 [
-  "musique/CENTRAL CEE X JRK 19 - BOLIDE NOIR (MUSIC VIDEO) - Central Cee.mp3",
-  "musique/Dingue ! - Youka.mp3",
-  "musique/KYKY2BONDY - Hamza.mp3",
-  "musique/R2 - C'EST RELOU - R2.mp3",
-  "musique/RUINART - R2.mp3",
-  "musique/Rsko - BOOM BOOM (Feat. IDS) - Rsko.mp3"
+  {
+    "url": "musique/CENTRAL CEE X JRK 19 - BOLIDE NOIR (MUSIC VIDEO) - Central Cee.mp3",
+    "titre": "BOLIDE NOIR (MUSIC VIDEO)",
+    "artiste": "CENTRAL CEE X JRK 19 - Central Cee"
+  },
+  {
+    "url": "musique/Dingue ! - Youka.mp3",
+    "titre": "Dingue !",
+    "artiste": "Youka"
+  },
+  {
+    "url": "musique/KYKY2BONDY - Hamza.mp3",
+    "titre": "KYKY2BONDY",
+    "artiste": "Hamza"
+  },
+  {
+    "url": "musique/R2 - C'EST RELOU - R2.mp3",
+    "titre": "C'EST RELOU",
+    "artiste": "R2 - R2"
+  },
+  {
+    "url": "musique/RUINART - R2.mp3",
+    "titre": "RUINART",
+    "artiste": "R2"
+  },
+  {
+    "url": "musique/Rsko - BOOM BOOM (Feat. IDS) - Rsko.mp3",
+    "titre": "BOOM BOOM (Feat. IDS)",
+    "artiste": "Rsko - Rsko"
+  }
 ]
