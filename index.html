@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Radio 24/7 — Lecteur synchronisé</title>
+<title>Radio 24/7 — Index</title>
 <style>
   :root{--bg:#0f1724;--muted:#9aa4b2;--accent:#7c3aed;color-scheme:dark}
   body{margin:0;font-family:sans-serif;background:#0f1724;color:white;display:flex;justify-content:center;padding:20px}
@@ -18,6 +18,7 @@
   button{cursor:pointer;border:none;padding:10px 14px;border-radius:8px;font-weight:600}
   .primary{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white}
   input[type=range]{accent-color:var(--accent)}
+  .footer{margin-top:20px;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -26,7 +27,7 @@
   <div id="status">Chargement de la playlist…</div>
 
   <div class="player">
-    <div class="art" id="art">—</div>
+    <div class="art" id="art">🎵</div>
     <div class="meta">
       <div class="track" id="title">—</div>
       <div class="artist" id="artist">—</div>
@@ -41,7 +42,8 @@
   </div>
 
   <div class="footer">
-    Playlist chargée depuis <code>list.json</code> (objets {url,titre,artiste}).
+    Playlist chargée depuis <code>list.json</code>.<br>
+    Tout le monde entend la même partie de la musique (synchronisation par horloge UTC).
   </div>
 </div>
 
@@ -51,7 +53,7 @@ const CYCLE_EPOCH = Date.UTC(2025,0,1,0,0,0);
 let playlist = []; // {url,titre,artiste,duration}
 let order = [];
 let masterAudio = new Audio();
-let started = false;
+let started=false;
 let updateTimer=null;
 let currentOrderIndex=0;
 
@@ -70,39 +72,37 @@ function status(s){ statusEl.textContent=s; }
 
 async function loadPlaylist(){
   try{
-    const r = await fetch('list.json',{cache:'no-store'});
-    const arr = await r.json();
-    playlist = arr.map(p => ({url:p.url, titre:p.titre, artiste:p.artiste, duration:0}));
-    await Promise.all(playlist.map(p => loadDuration(p)));
+    const r=await fetch('list.json',{cache:'no-store'});
+    const arr=await r.json();
+    playlist=arr.map(p=>({url:p.url,titre:p.titre,artiste:p.artiste,duration:0}));
+    await Promise.all(playlist.map(p=>loadDuration(p)));
     buildShuffle();
     status('Prêt — clique "Écouter"');
-  } catch(e){
-    status('Erreur chargement list.json: '+e);
-  }
+  }catch(e){ status('Erreur chargement list.json: '+e); }
 }
 
 function loadDuration(p){
   return new Promise(res=>{
-    const a = new Audio();
+    const a=new Audio();
     a.preload='metadata'; a.src=p.url;
-    a.onloadedmetadata = ()=>{p.duration = isFinite(a.duration)?a.duration:180; res();};
+    a.onloadedmetadata=()=>{p.duration=isFinite(a.duration)?a.duration:180;res();};
     setTimeout(()=>{if(!p.duration)p.duration=180;res();},5000);
   });
 }
 
 function buildShuffle(){
-  const n = playlist.length; if(!n) return;
-  order = Array.from({length:n},(_,i)=>i);
-  for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]];}
+  const n=playlist.length; if(!n)return;
+  order=Array.from({length:n},(_,i)=>i);
+  for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
   if(n>1 && order[0]===order[n-1]) [order[0],order[1]]=[order[1],order[0]];
 }
 
 function getTotalDuration(){return playlist.reduce((s,p)=>s+(p.duration||0),0)||1;}
 function computePos(){
-  let elapsed = (Date.now()-CYCLE_EPOCH)/1000;
-  let t = elapsed % getTotalDuration();
+  let elapsed=(Date.now()-CYCLE_EPOCH)/1000;
+  let t=elapsed%getTotalDuration();
   for(let i=0;i<order.length;i++){
-    let d = playlist[order[i]].duration||1;
+    let d=playlist[order[i]].duration||1;
     if(t<d) return {orderIndex:i,time:t};
     t-=d;
   }
@@ -112,36 +112,32 @@ function computePos(){
 function playOrderIndex(idx,offset=0){
   currentOrderIndex=idx;
   const p=playlist[order[idx]];
-  masterAudio.src = p.url;
-  masterAudio.currentTime = offset;
+  masterAudio.src=p.url;
+  masterAudio.currentTime=offset;
   masterAudio.play().catch(()=>status('Clique "Écouter" pour lancer'));
   updateInfo();
 }
 
 function updateInfo(){
-  const p = playlist[order[currentOrderIndex]];
-  if(!p) return;
-  titleEl.textContent = p.titre;
-  artistEl.textContent = p.artiste;
-  artEl.style.backgroundImage='';
-  artEl.textContent='🎵';
+  const p=playlist[order[currentOrderIndex]];
+  if(!p)return;
+  titleEl.textContent=p.titre;
+  artistEl.textContent=p.artiste;
   if(masterAudio.duration){
-    let rem = masterAudio.duration - masterAudio.currentTime;
-    timeEl.textContent = `${fmt(masterAudio.currentTime)} / ${fmt(masterAudio.duration)} — restant ${fmt(rem)}`;
+    let rem=masterAudio.duration-masterAudio.currentTime;
+    timeEl.textContent=`${fmt(masterAudio.currentTime)} / ${fmt(masterAudio.duration)} — restant ${fmt(rem)}`;
   }
 }
 
-function fmt(s){if(!isFinite(s))return'—'; const m=Math.floor(s/60); const sec=Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${sec}`;}
+function fmt(s){if(!isFinite(s))return'—';const m=Math.floor(s/60);const sec=Math.floor(s%60).toString().padStart(2,'0');return`${m}:${sec}`;}
 
 function startPlayback(){
-  started = true; listenBtn.disabled=true; masterAudio.volume=parseFloat(volumeEl.value);
-  const pos = computePos(); playOrderIndex(pos.orderIndex,pos.time);
-  updateTimer = setInterval(()=>{
-    updateInfo();
-    if(masterAudio.duration && masterAudio.currentTime+0.5 >= masterAudio.duration){
+  started=true;listenBtn.disabled=true;masterAudio.volume=parseFloat(volumeEl.value);
+  const pos=computePos(); playOrderIndex(pos.orderIndex,pos.time);
+  updateTimer=setInterval(()=>{updateInfo();
+    if(masterAudio.duration&&masterAudio.currentTime+0.5>=masterAudio.duration){
       playOrderIndex((currentOrderIndex+1)%order.length,0);
-    }
-  },1000);
+    }},1000);
 }
 
 loadPlaylist();
