@@ -41,7 +41,8 @@
   </div>
 
   <div class="footer">
-    Playlist chargée depuis <code>list.json</code> (objets {url,titre,artiste}).
+    Playlist chargée depuis <code>list.json</code> (objets {url,titre,artiste}).<br>
+    Admin intégré : ouvre la console ou un autre onglet pour forcer une musique.
   </div>
 </div>
 
@@ -54,6 +55,7 @@ let masterAudio = new Audio();
 let started = false;
 let updateTimer=null;
 let currentOrderIndex=0;
+let overridePlayed = false;
 
 const statusEl=document.getElementById('status');
 const titleEl=document.getElementById('title');
@@ -136,13 +138,51 @@ function fmt(s){if(!isFinite(s))return'—'; const m=Math.floor(s/60); const sec
 function startPlayback(){
   started = true; listenBtn.disabled=true; masterAudio.volume=parseFloat(volumeEl.value);
   const pos = computePos(); playOrderIndex(pos.orderIndex,pos.time);
+
+  // interval principal
   updateTimer = setInterval(()=>{
     updateInfo();
+
+    // vérifier override forcé
+    checkOverrideOnce();
+
+    // fin du morceau
     if(masterAudio.duration && masterAudio.currentTime+0.5 >= masterAudio.duration){
+      if(overridePlayed){
+        overridePlayed=false; // reset
+      }
       playOrderIndex((currentOrderIndex+1)%order.length,0);
     }
   },1000);
 }
+
+// ----------------- override admin -----------------
+
+function checkOverrideOnce(){
+  try{
+    const item = localStorage.getItem("forcedTrack");
+    if(item && !overridePlayed){
+      const url = item.split("|")[0];
+      overridePlayed = true;
+      masterAudio.src = url;
+      masterAudio.currentTime = 0;
+      masterAudio.play();
+    }
+  }catch(e){}
+}
+
+// écouter changements depuis un autre onglet
+window.addEventListener("storage", e=>{
+  if(e.key==="forcedTrack"){
+    const url = e.newValue.split("|")[0];
+    if(url && !overridePlayed){
+      overridePlayed = true;
+      masterAudio.src = url;
+      masterAudio.currentTime = 0;
+      masterAudio.play();
+    }
+  }
+});
 
 loadPlaylist();
 </script>
