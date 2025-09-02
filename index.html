@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Radio 24/7 — Lecteur synchronisé</title>
+<title>Radio 24/7 — Index</title>
 <style>
   :root{--bg:#0f1724;--muted:#9aa4b2;--accent:#7c3aed;color-scheme:dark}
   body{margin:0;font-family:sans-serif;background:#0f1724;color:white;display:flex;justify-content:center;padding:20px}
@@ -17,7 +17,6 @@
   .controls{margin-top:14px;display:flex;align-items:center;gap:10px}
   button{cursor:pointer;border:none;padding:10px 14px;border-radius:8px;font-weight:600}
   .primary{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white}
-  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted)}
   input[type=range]{accent-color:var(--accent)}
   .footer{margin-top:20px;font-size:12px;color:var(--muted)}
 </style>
@@ -28,7 +27,7 @@
   <div id="status">Chargement de la playlist…</div>
 
   <div class="player">
-    <div class="art" id="art">—</div>
+    <div class="art" id="art">🎵</div>
     <div class="meta">
       <div class="track" id="title">—</div>
       <div class="artist" id="artist">—</div>
@@ -43,19 +42,18 @@
   </div>
 
   <div class="footer">
-    Playlist chargée depuis <code>list.json</code> (chemins relatifs vers tes mp3).<br>
-    Métadonnées récupérées via l’API iTunes.
+    Playlist chargée depuis <code>list.json</code>.<br>
+    Tout le monde entend la même partie de la musique (synchronisation par horloge UTC).
   </div>
 </div>
 
 <script>
 const CYCLE_EPOCH = Date.UTC(2025,0,1,0,0,0);
-const itunesBase = 'https://itunes.apple.com/search?media=music&entity=song&limit=1&term=';
 
-let playlist = []; // {url, fileName, duration, meta}
+let playlist = []; // {url,titre,artiste,duration}
 let order = [];
 let masterAudio = new Audio();
-let started = false;
+let started=false;
 let updateTimer=null;
 let currentOrderIndex=0;
 
@@ -71,16 +69,14 @@ volumeEl.addEventListener('input',()=>{masterAudio.volume=parseFloat(volumeEl.va
 listenBtn.addEventListener('click',()=>{ if(!started) startPlayback(); });
 
 function status(s){ statusEl.textContent=s; }
-function getFileName(u){ return decodeURIComponent(u.split('/').pop().split('?')[0]); }
 
 async function loadPlaylist(){
   try{
     const r=await fetch('list.json',{cache:'no-store'});
     const arr=await r.json();
-    playlist=arr.map(u=>({url:u,fileName:getFileName(u),duration:0,meta:null}));
+    playlist=arr.map(p=>({url:p.url,titre:p.titre,artiste:p.artiste,duration:0}));
     await Promise.all(playlist.map(p=>loadDuration(p)));
     buildShuffle();
-    await Promise.all(playlist.map(p=>fetchMetadata(p)));
     status('Prêt — clique "Écouter"');
   }catch(e){ status('Erreur chargement list.json: '+e); }
 }
@@ -88,9 +84,8 @@ async function loadPlaylist(){
 function loadDuration(p){
   return new Promise(res=>{
     const a=new Audio();
-    a.preload='metadata'; a.src=p.url; a.onloadedmetadata=()=>{
-      p.duration=isFinite(a.duration)?a.duration:180; res();
-    };
+    a.preload='metadata'; a.src=p.url;
+    a.onloadedmetadata=()=>{p.duration=isFinite(a.duration)?a.duration:180;res();};
     setTimeout(()=>{if(!p.duration)p.duration=180;res();},5000);
   });
 }
@@ -100,20 +95,6 @@ function buildShuffle(){
   order=Array.from({length:n},(_,i)=>i);
   for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
   if(n>1 && order[0]===order[n-1]) [order[0],order[1]]=[order[1],order[0]];
-}
-
-async function fetchMetadata(p){
-  let q=p.fileName.replace(/\.[^.]+$/,'').replace(/^\d+[-_.\s]*/,'');
-  const url=itunesBase+encodeURIComponent(q);
-  try{
-    const r=await fetch(url); const j=await r.json();
-    if(j.resultCount>0){
-      const t=j.results[0];
-      p.meta={artist:t.artistName,track:t.trackName,artwork:t.artworkUrl100.replace('100x100','600x600')};
-      return;
-    }
-  }catch(e){}
-  p.meta={artist:'',track:p.fileName,artwork:null};
 }
 
 function getTotalDuration(){return playlist.reduce((s,p)=>s+(p.duration||0),0)||1;}
@@ -140,10 +121,8 @@ function playOrderIndex(idx,offset=0){
 function updateInfo(){
   const p=playlist[order[currentOrderIndex]];
   if(!p)return;
-  titleEl.textContent=p.meta?p.meta.track:p.fileName;
-  artistEl.textContent=p.meta?p.meta.artist:'';
-  if(p.meta&&p.meta.artwork){artEl.style.backgroundImage=`url(${p.meta.artwork})`;artEl.textContent='';}
-  else {artEl.style.backgroundImage='';artEl.textContent='—';}
+  titleEl.textContent=p.titre;
+  artistEl.textContent=p.artiste;
   if(masterAudio.duration){
     let rem=masterAudio.duration-masterAudio.currentTime;
     timeEl.textContent=`${fmt(masterAudio.currentTime)} / ${fmt(masterAudio.duration)} — restant ${fmt(rem)}`;
