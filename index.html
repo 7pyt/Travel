@@ -90,11 +90,9 @@ function loadDuration(p){
   });
 }
 
+// --- Synchronisation : pas de shuffle, ordre naturel ---
 function buildShuffle(){
-  const n=playlist.length; if(!n)return;
-  order=Array.from({length:n},(_,i)=>i);
-  for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
-  if(n>1 && order[0]===order[n-1]) [order[0],order[1]]=[order[1],order[0]];
+  order = playlist.map((_,i)=>i); // ordre naturel
 }
 
 function getTotalDuration(){return playlist.reduce((s,p)=>s+(p.duration||0),0)||1;}
@@ -134,10 +132,12 @@ function fmt(s){if(!isFinite(s))return'—';const m=Math.floor(s/60);const sec=M
 function startPlayback(){
   started=true;listenBtn.disabled=true;masterAudio.volume=parseFloat(volumeEl.value);
   const pos=computePos(); playOrderIndex(pos.orderIndex,pos.time);
-  updateTimer=setInterval(()=>{updateInfo();
-    if(masterAudio.duration&&masterAudio.currentTime+0.5>=masterAudio.duration){
+  updateTimer=setInterval(()=>{
+    updateInfo();
+    if(masterAudio.duration && masterAudio.currentTime+0.5 >= masterAudio.duration){
       playOrderIndex((currentOrderIndex+1)%order.length,0);
-    }},1000);
+    }
+  },1000);
 }
 
 loadPlaylist();
