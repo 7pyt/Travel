@@ -8,17 +8,21 @@
 body{font-family:sans-serif;background:#0f1724;color:white;padding:20px}
 h1{color:#7c3aed}
 ul{list-style:none;padding:0}
-li{margin:8px 0}
-button{padding:6px 12px;background:#7c3aed;border:none;color:white;border-radius:6px;cursor:pointer}
+li{margin:8px 0;display:flex;align-items:center;justify-content:space-between}
+button{padding:6px 12px;margin-left:6px;border:none;border-radius:6px;cursor:pointer;font-weight:600}
+button.force{background:#7c3aed;color:white}
+button.stop{background:#f43f5e;color:white}
 </style>
 </head>
 <body>
+
 <h1>Admin Radio 24/7</h1>
-<ul id="tracks">Chargement…</ul>
+<div id="status">Chargement…</div>
+<ul id="trackList"></ul>
 
 <script>
-// mot de passe simple
-const PASSWORD = "monmotdepasse"; // change-le
+// ----------------- sécurité simple -----------------
+const PASSWORD = "admin123"; // change-le
 const userInput = prompt("Mot de passe admin :");
 if(userInput !== PASSWORD){
     alert("Mot de passe incorrect !");
@@ -26,30 +30,51 @@ if(userInput !== PASSWORD){
     throw "Accès refusé";
 }
 
-let forcedTrack = null; // URL du morceau forcé
+// ----------------- chargement de la playlist -----------------
+async function loadPlaylist(){
+    try{
+        const r = await fetch('list.json',{cache:'no-store'});
+        const data = await r.json();
+        const ul = document.getElementById('trackList');
+        ul.innerHTML = '';
+        data.forEach(p=>{
+            const li = document.createElement('li');
+            li.textContent = `${p.titre} — ${p.artiste}`;
+            
+            const btnForce = document.createElement('button');
+            btnForce.className = "force";
+            btnForce.textContent = "Forcer";
+            btnForce.onclick = ()=>forceTrack(p.url);
+            
+            const btnStop = document.createElement('button');
+            btnStop.className = "stop";
+            btnStop.textContent = "Stop";
+            btnStop.onclick = stopTrack;
 
-async function loadList(){
-    const r = await fetch('list.json');
-    const data = await r.json();
-    const ul = document.getElementById('tracks');
-    ul.innerHTML = '';
-    data.forEach((p)=>{
-        const li = document.createElement('li');
-        li.textContent = p.titre + " — " + p.artiste;
-        const btn = document.createElement('button');
-        btn.textContent = "Forcer";
-        btn.onclick = ()=>{
-            forcedTrack = p.url;
-            alert("Musique forcée : " + p.titre);
-            // envoi un événement à la page index si elle est ouverte dans un autre onglet
-            localStorage.setItem("forcedTrack", p.url + "|" + Date.now());
-        };
-        li.appendChild(btn);
-        ul.appendChild(li);
-    });
+            li.appendChild(btnForce);
+            li.appendChild(btnStop);
+            ul.appendChild(li);
+        });
+        document.getElementById('status').textContent = "Playlist chargée";
+    } catch(e){
+        document.getElementById('status').textContent = "Erreur chargement list.json";
+        console.error(e);
+    }
 }
 
-loadList();
+// ----------------- fonctions -----------------
+function forceTrack(url){
+    localStorage.setItem("forcedTrack", url + "|" + Date.now());
+    alert("Musique forcée : " + url);
+}
+
+function stopTrack(){
+    localStorage.removeItem("forcedTrack");
+    alert("Forçage stoppé, lecture aléatoire reprendra");
+}
+
+// ----------------- initialisation -----------------
+loadPlaylist();
 </script>
 </body>
 </html>
